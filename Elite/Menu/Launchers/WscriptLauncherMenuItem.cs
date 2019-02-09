@@ -176,7 +176,7 @@ namespace Elite.Menu.Launchers
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
-            WmicLauncherMenuItem wmicLauncherMenuItem = ((WmicLauncherMenuItem)menuItem);
+            WscriptLauncherMenuItem wscriptLauncherMenuItem = ((WscriptLauncherMenuItem)menuItem);
             string[] commands = UserInput.Split(" ");
             if (commands.Length != 2 || commands[0].ToLower() != "write")
             {
@@ -184,16 +184,16 @@ namespace Elite.Menu.Launchers
             }
             else
             {
-                wmicLauncherMenuItem.Refresh();
-                if (wmicLauncherMenuItem.wmicLauncher.LauncherString == "")
+                wscriptLauncherMenuItem.Refresh();
+                if (wscriptLauncherMenuItem.wscriptLauncher.LauncherString == "")
                 {
-                    wmicLauncherMenuItem.CovenantClient.ApiLaunchersBinaryPost();
-                    wmicLauncherMenuItem.Refresh();
-                    EliteConsole.PrintFormattedHighlightLine("Generated WscriptLauncher: " + wmicLauncherMenuItem.wmicLauncher.LauncherString);
+                    wscriptLauncherMenuItem.CovenantClient.ApiLaunchersBinaryPost();
+                    wscriptLauncherMenuItem.Refresh();
+                    EliteConsole.PrintFormattedHighlightLine("Generated WscriptLauncher: " + wscriptLauncherMenuItem.wscriptLauncher.LauncherString);
                 }
 
                 string OutputFilePath = Common.EliteDataFolder + String.Concat(commands[1].Split(System.IO.Path.GetInvalidFileNameChars()));
-                System.IO.File.WriteAllText(OutputFilePath, wmicLauncherMenuItem.wmicLauncher.DiskCode);
+                System.IO.File.WriteAllText(OutputFilePath, wscriptLauncherMenuItem.wscriptLauncher.DiskCode);
                 EliteConsole.PrintFormattedHighlightLine("Wrote WscriptLauncher to: \"" + OutputFilePath + "\"");
             }
         }
