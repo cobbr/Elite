@@ -375,14 +375,13 @@ namespace Elite.Menu.Grunts
         public MenuCommandGruntInteractAssembly()
         {
             this.Name = "Assembly";
-            this.Description = "Execute a .NET Assembly.";
+            this.Description = "Execute a .NET Assembly EntryPoint.";
             this.Parameters = new List<MenuCommandParameter> {
                 new MenuCommandParameter {
                     Name = "Assembly Path",
-                    Values = new MenuCommandParameterValuesFromFilePath(Common.EliteDataFolder) 
+                    Values = new MenuCommandParameterValuesFromFilePath(Common.EliteDataFolder)
                 },
-                new MenuCommandParameter { Name = "Type Name" },
-                new MenuCommandParameter { Name = "Method Name" }
+                new MenuCommandParameter { Name = "Parameters" }
             };
         }
 
@@ -394,10 +393,6 @@ namespace Elite.Menu.Grunts
                 EliteConsole.PrintFormattedErrorLine("Must specify AssemblyPath containing Assembly to execute.");
                 menuItem.PrintInvalidOptionError(UserInput);
             }
-            else if (commands.Count > 4)
-            {
-                menuItem.PrintInvalidOptionError(UserInput);
-            }
             else
             {
                 GruntInteractMenuItem gruntInteractMenuItem = (GruntInteractMenuItem)menuItem;
@@ -406,11 +401,60 @@ namespace Elite.Menu.Grunts
                 task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set AssemblyPath " + commands[1]);
                 if (commands.Count > 2)
                 {
+                    task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Parameters " + String.Join(" ", commands.GetRange(2, commands.Count() - 2)));
+                }
+                task.AdditionalOptions.FirstOrDefault(O => O.Name == "Start").Command(task, "Start");
+                task.LeavingMenuItem();
+            }
+        }
+    }
+
+    public class MenuCommandGruntInteractAssemblyReflect : MenuCommand
+    {
+        public MenuCommandGruntInteractAssemblyReflect()
+        {
+            this.Name = "AssemblyReflect";
+            this.Description = "Execute a .NET Assembly method using reflection.";
+            this.Parameters = new List<MenuCommandParameter> {
+                new MenuCommandParameter {
+                    Name = "Assembly Path",
+                    Values = new MenuCommandParameterValuesFromFilePath(Common.EliteDataFolder) 
+                },
+                new MenuCommandParameter { Name = "Type Name" },
+                new MenuCommandParameter { Name = "Method Name" },
+                new MenuCommandParameter { Name = "Parameters" }
+            };
+        }
+
+        public override void Command(MenuItem menuItem, string UserInput)
+        {
+            List<string> commands = Utilities.ParseParameters(UserInput);
+            if (commands.Count() < 2)
+            {
+                EliteConsole.PrintFormattedErrorLine("Must specify AssemblyPath containing Assembly to execute.");
+                menuItem.PrintInvalidOptionError(UserInput);
+            }
+            else if (commands.Count > 5)
+            {
+                menuItem.PrintInvalidOptionError(UserInput);
+            }
+            else
+            {
+                GruntInteractMenuItem gruntInteractMenuItem = (GruntInteractMenuItem)menuItem;
+                TaskMenuItem task = (TaskMenuItem)gruntInteractMenuItem.MenuOptions.FirstOrDefault(O => O.MenuTitle == "Task");
+                task.ValidateMenuParameters(new string[] { "AssemblyReflect" });
+                task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set AssemblyPath " + commands[1]);
+                if (commands.Count > 2)
+                {
                     task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set TypeName " + commands[2]);
                 }
                 if (commands.Count > 3)
                 {
                     task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set MethodName " + commands[3]);
+                }
+                if (commands.Count > 4)
+                {
+                    task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Parameters " + commands[4]);
                 }
                 task.AdditionalOptions.FirstOrDefault(O => O.Name == "Start").Command(task, "Start");
                 task.LeavingMenuItem();
@@ -439,7 +483,7 @@ public static class Task
 {{
     public static object Execute()
     {{
-        {0} 
+        {0}
     }}
 }}
 ";
@@ -470,7 +514,9 @@ public static class Task
                     Id = gruntTaskId,
                     Name = "SharpShell" + gruntTaskId,
                     Description = "Execute custom c# code from SharpShell.",
-                    ReferenceAssemblies = String.Join(",", new List<string>()),
+                    ReferenceAssemblies = String.Join(",", new List<string> { "System.DirectoryServices.dll", "System.IdentityModel.dll", "System.Management.dll", "System.Management.Automation.dll" }),
+                    ReferenceSourceLibraries = String.Join(",", new List<string> { "SharpSploit" }),
+                    EmbeddedResources = String.Join(",", new List<string>()),
                     Code = String.Format(WrapperFunctionFormat, csharpcode),
                     Options = new List<GruntTaskOption>()
                 });
@@ -494,7 +540,6 @@ public static class Task
                 {
                     EliteConsole.PrintFormattedHighlightLine("Started Task: " + task.Name + " on Grunt: " + grunt.Name + " as GruntTask: " + postedGruntTasking.Name);
                 }
-
             }
         }
     }
@@ -825,6 +870,38 @@ public static class Task
             }
         }
     }
+
+    public class MenuCommandGruntInteractRubeus : MenuCommand
+    {
+        public MenuCommandGruntInteractRubeus()
+        {
+            this.Name = "Rubeus";
+            this.Description = "Use a Rubeus command.";
+            this.Parameters = new List<MenuCommandParameter> {
+                new MenuCommandParameter { Name = "Command" }
+            };
+        }
+
+        public override void Command(MenuItem menuItem, string UserInput)
+        {
+            List<string> commands = Utilities.ParseParameters(UserInput);
+            if (commands.Count() < 2)
+            {
+                EliteConsole.PrintFormattedErrorLine("Must specify a Rubeus command.");
+                EliteConsole.PrintFormattedErrorLine("Usage: Rubeus <command>");
+            }
+            else
+            {
+                GruntInteractMenuItem gruntInteractMenuItem = (GruntInteractMenuItem)menuItem;
+                TaskMenuItem task = (TaskMenuItem)gruntInteractMenuItem.MenuOptions.FirstOrDefault(O => O.MenuTitle == "Task");
+                task.ValidateMenuParameters(new string[] { "Rubeus" });
+                task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Command " + String.Join(" ", commands.GetRange(1, commands.Count() - 1)));
+                task.AdditionalOptions.FirstOrDefault(O => O.Name == "Start").Command(task, "Start");
+                task.LeavingMenuItem();
+            }
+        }
+    }
+
 
     public class MenuCommandGruntInteractKerberoast : MenuCommand
     {
@@ -1516,6 +1593,7 @@ public static class Task
             this.AdditionalOptions.Add(new MenuCommandGruntInteractUpload());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractDownload());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractAssembly());
+            this.AdditionalOptions.Add(new MenuCommandGruntInteractAssemblyReflect());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractSharpShell());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractShell());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractPowerShell());
@@ -1526,6 +1604,7 @@ public static class Task
             this.AdditionalOptions.Add(new MenuCommandGruntInteractSamDump());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractLsaSecrets());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractDCSync());
+            this.AdditionalOptions.Add(new MenuCommandGruntInteractRubeus());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractKerberoast());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractGetDomainUser());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractGetDomainGroup());

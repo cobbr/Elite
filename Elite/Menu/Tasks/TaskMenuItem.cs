@@ -192,7 +192,25 @@ namespace Elite.Menu.Tasks
                             new MenuCommandParameter { Name = "Value" }
                         }
                     };
-				case "Upload":
+                case "AssemblyReflect":
+                    return new MenuCommandAssemblyReflectTaskSet(CovenantClient)
+                    {
+                        Name = "Set",
+                        Description = "Set AssemblyReflectTask option",
+                        Parameters = new List<MenuCommandParameter> {
+                            new MenuCommandParameter {
+                                Name = "Option",
+                                Values = DefaultOptions.Append(
+                                    new MenuCommandParameterValue {
+                                        Value = "AssemblyPath",
+                                        NextValueSuggestions = Utilities.GetFilesForPath(Common.EliteDataFolder)
+                                    }
+                                ).ToList()
+                            },
+                            new MenuCommandParameter { Name = "Value" }
+                        }
+                    };
+                case "Upload":
 					return new MenuCommandUploadTaskSet(CovenantClient)
 					{
                         Name = "Set",
