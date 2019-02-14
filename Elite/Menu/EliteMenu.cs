@@ -84,6 +84,7 @@ namespace Elite.Menu
         {
             try
             {
+                UserInput = UserInput.Trim();
                 if (UserInput != "")
                 {
                     MenuItem currentMenuItem = this.GetCurrentMenuItem();
