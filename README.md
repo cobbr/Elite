@@ -40,11 +40,13 @@ $ ~/Elite/Elite > docker build -t elite .
 
 Now we can run Elite in a Docker container:
 ```
-$ ~/Elite/Elite > docker run -it --rm --name elite elite --username AdminUser --computername <Covenant IP>
+$ ~/Elite/Elite > docker run -it --rm --name elite -v /absolute/path/to/Elite/Data:/app/Data elite --username AdminUser --computername <Covenant IP>
 ```
 The `--username AdminUser` and `--computername <Covenant IP>` are arguments being passed to Elite. This instructs Elite to connect to a Covenant instance hosted at the specifiec IP address and login as a user named `AdminUser`.
 
-The `-it` parameter is a Docker parameter that indicates that we should begin Elite in an interactive tty. This is important, as Elite is an interactive console application! You will be prompted to provide a password for the `AdminUser` user. Alternatively, you can set this non-interactively with the `--password` parameter to Elite, but this will leave your password in plaintext in command history, not ideal.
+The `-it` parameter is a Docker parameter that indicates that we should begin Elite in an interactive tty. This is important, as Elite is an interactive console application! The `-v /absolute/path/to/Elite/Data:/app/Data` parameter mounts a shared `Data` folder between your host and container, and allows you to easily copy/paste outside tools and payloads generated during operation with Elite. Be sure to replace `/absolute/path/to/Elite/Data` with the location of your own Elite Data folder.
+
+You will also be prompted to provide a password for the `AdminUser` user. Alternatively, you can set this non-interactively with the `--password` parameter to Elite, but this will leave your password in plaintext in command history, not ideal.
 
 ### Without Docker
 
