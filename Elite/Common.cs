@@ -37,6 +37,7 @@ namespace Elite
         public static string EliteRootFolder = Assembly.GetExecutingAssembly().Location.Split("bin")[0].Split("Elite.dll")[0];
         public static string EliteDataFolder = EliteRootFolder + "Data" + Path.DirectorySeparatorChar;
         public static string EliteResourcesFolder = EliteDataFolder + "Resources" + Path.DirectorySeparatorChar;
+        public static string EliteDownloadsFolder = EliteDataFolder + "Downloads" + Path.DirectorySeparatorChar;
         public static Encoding CovenantEncoding = Encoding.UTF8;
     }
 

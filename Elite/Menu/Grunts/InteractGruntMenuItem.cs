@@ -857,11 +857,11 @@ public static class Task
                 }
                 if (commands.Count() > 2)
                 {
-                    command += " /domain:" + commands[3];
+                    command += " /domain:" + commands[2];
                 }
                 if (commands.Count() > 3)
                 {
-                    command += " /dc:" + commands[4];
+                    command += " /dc:" + commands[3];
                 }
                 command += "\"";
                 task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Command " + command);

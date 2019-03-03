@@ -33,6 +33,7 @@ namespace Elite.Menu
 			this.MenuOptions.Add(new GruntsMenuItem(this.CovenantClient, this.EventPrinter));
             this.MenuOptions.Add(new LaunchersMenuItem(this.CovenantClient, this.EventPrinter));
 			this.MenuOptions.Add(new ListenersMenuItem(this.CovenantClient, this.EventPrinter));
+            this.MenuOptions.Add(new CredentialsMenuItem(this.CovenantClient, this.EventPrinter));
             this.MenuOptions.Add(new IndicatorsMenuItem(this.CovenantClient, this.EventPrinter));
 			try
 			{

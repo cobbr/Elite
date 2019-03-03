@@ -3,8 +3,8 @@
 // License: GNU GPLv3
 
 using System;
+using System.IO;
 using System.Text;
-using System.Linq;
 using System.Net.Http;
 using System.Collections.Generic;
 
@@ -41,8 +41,7 @@ namespace Elite.Menu
                 else if (theEvent.Type == EventType.Download)
                 {
                     DownloadEvent downloadEvent = this.CovenantClient.ApiEventsDownloadByIdGet(theEvent.Id ?? default);
-                    string download = this.CovenantClient.ApiEventsDownloadByIdContentGet(downloadEvent.Id ?? default);
-                    System.IO.File.WriteAllBytes(System.IO.Path.Combine(Common.EliteDataFolder, theEvent.Message), Convert.FromBase64String(download));
+                    File.WriteAllBytes(Path.Combine(Common.EliteDownloadsFolder, downloadEvent.FileName), Convert.FromBase64String(downloadEvent.FileContents));
                 }
             };
         }
