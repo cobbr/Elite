@@ -32,6 +32,8 @@ namespace Elite.Menu.Launchers
             menu.Rows.Add(new List<string> { "Description:", launcher.Description });
             menu.Rows.Add(new List<string> { "ListenerName:", listener == null ? "" : listener.Name });
             menu.Rows.Add(new List<string> { "DotNetFramework:", launcher.DotNetFrameworkVersion == DotNetVersion.Net35 ? "v3.5" : "v4.0" });
+            menu.Rows.Add(new List<string> { "UsePipes:", (launcher.UsePipes ?? default).ToString() });
+            menu.Rows.Add(new List<string> { "PipeName:", launcher.PipeName });
             menu.Rows.Add(new List<string> { "Delay:", (launcher.Delay ?? default).ToString() });
             menu.Rows.Add(new List<string> { "Jitter:", (launcher.Jitter ?? default).ToString() });
             menu.Rows.Add(new List<string> { "ConnectAttempts:", (launcher.ConnectAttempts ?? default).ToString() });
@@ -209,6 +211,11 @@ namespace Elite.Menu.Launchers
                             Value = "DotNetFrameworkVersion",
                             NextValueSuggestions = new List<string> { "net35", "net40" }
                         },
+                        new MenuCommandParameterValue {
+                            Value = "UsePipes",
+                            NextValueSuggestions = new List<string> { "true", "false" }
+                        },
+                        new MenuCommandParameterValue { Value = "PipeName" },
                         new MenuCommandParameterValue { Value = "Delay" },
                         new MenuCommandParameterValue { Value = "Jitter" },
                         new MenuCommandParameterValue { Value = "ConnectAttempts" },
@@ -251,6 +258,21 @@ namespace Elite.Menu.Launchers
                     {
                         binaryLauncher.DotNetFrameworkVersion = DotNetVersion.Net40;
                     }
+                }
+                else if (commands[1].ToLower() == "usepipes")
+                {
+                    if (commands[2].ToLower().StartsWith("t"))
+                    {
+                        binaryLauncher.UsePipes = true;
+                    }
+                    else
+                    {
+                        binaryLauncher.UsePipes = false;
+                    }
+                }
+                else if (commands[1].ToLower() == "pipename")
+                {
+                    binaryLauncher.PipeName = commands[2];
                 }
                 else if (commands[1].ToLower() == "delay")
                 {

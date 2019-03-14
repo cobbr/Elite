@@ -1563,6 +1563,49 @@ public static class Task
         }
     }
 
+    public class MenuCommandGruntInteractConnect : MenuCommand
+    {
+        public MenuCommandGruntInteractConnect(CovenantAPI CovenantClient) : base(CovenantClient)
+        {
+            this.Name = "Connect";
+            this.Description = "Connect to a Grunt using a named pipe.";
+            this.Parameters = new List<MenuCommandParameter> {
+                new MenuCommandParameter { Name = "ComputerName" },
+                new MenuCommandParameter { Name = "PipeName" }
+            };
+        }
+
+        public override void Command(MenuItem menuItem, string UserInput)
+        {
+            menuItem.Refresh();
+            GruntInteractMenuItem gruntInteractMenuItem = (GruntInteractMenuItem)menuItem;
+            string[] commands = UserInput.Split(" ");
+            if (commands.Length < 2 || commands.Length > 3 || commands[0].ToLower() != "connect")
+            {
+                menuItem.PrintInvalidOptionError(UserInput);
+                return;
+            }
+            string PipeName = "gruntsvc";
+            if (commands.Length == 3)
+            {
+                PipeName = commands[2];
+            }
+            GruntTasking gruntTasking = new GruntTasking
+            {
+                Id = 0,
+                GruntId = gruntInteractMenuItem.grunt.Id,
+                TaskId = 1,
+                Name = Guid.NewGuid().ToString().Replace("-", "").Substring(0, 10),
+                Status = GruntTaskingStatus.Uninitialized,
+                Type = GruntTaskingType.Connect,
+                GruntTaskOutput = "",
+                SetType = GruntSetTaskingType.Delay,
+                Value = commands[1] + "," + PipeName
+            };
+            this.CovenantClient.ApiGruntsByIdTaskingsPost(gruntInteractMenuItem.grunt.Id ?? default, gruntTasking);
+        }
+    }
+
     public class GruntInteractMenuItem : MenuItem
     {
         public Grunt grunt { get; set; }
@@ -1622,6 +1665,7 @@ public static class Task
             this.AdditionalOptions.Add(new MenuCommandGruntInteractDCOM());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractBypassUAC());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractTaskOutput(this.CovenantClient));
+            this.AdditionalOptions.Add(new MenuCommandGruntInteractConnect(this.CovenantClient));
 
             this.SetupMenuAutoComplete();
         }
