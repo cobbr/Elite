@@ -136,10 +136,10 @@ namespace Elite.Menu.Grunts
 
     public class MenuCommandGruntInteractListDirectory : MenuCommand
     {
-		public MenuCommandGruntInteractListDirectory()
+        public MenuCommandGruntInteractListDirectory()
         {
             this.Name = "ls";
-			this.Description = "Get a listing of the current directory.";
+            this.Description = "Get a listing of the current directory.";
             this.Parameters = new List<MenuCommandParameter> { };
         }
 
@@ -147,7 +147,7 @@ namespace Elite.Menu.Grunts
         {
             List<string> commands = Utilities.ParseParameters(UserInput);
             if (commands.Count() != 1)
-			{
+            {
                 EliteConsole.PrintFormattedErrorLine("Usage: ls");
             }
             else
@@ -161,12 +161,12 @@ namespace Elite.Menu.Grunts
         }
     }
 
-	public class MenuCommandGruntInteractChangeDirectory : MenuCommand
+    public class MenuCommandGruntInteractChangeDirectory : MenuCommand
     {
-		public MenuCommandGruntInteractChangeDirectory()
+        public MenuCommandGruntInteractChangeDirectory()
         {
             this.Name = "cd";
-			this.Description = "Change the current directory.";
+            this.Description = "Change the current directory.";
             this.Parameters = new List<MenuCommandParameter> {
                 new MenuCommandParameter { Name = "Append Directory" },
             };
@@ -185,19 +185,19 @@ namespace Elite.Menu.Grunts
                 GruntInteractMenuItem gruntInteractMenuItem = (GruntInteractMenuItem)menuItem;
                 TaskMenuItem task = (TaskMenuItem)gruntInteractMenuItem.MenuOptions.FirstOrDefault(O => O.MenuTitle == "Task");
                 task.ValidateMenuParameters(new string[] { "ChangeDirectory" });
-				task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set AppendDirectory " + String.Join(" ", commands.GetRange(1, commands.Count() - 1)));
+                task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set AppendDirectory " + String.Join(" ", commands.GetRange(1, commands.Count() - 1)));
                 task.AdditionalOptions.FirstOrDefault(O => O.Name == "Start").Command(task, "Start");
                 task.LeavingMenuItem();
             }
         }
     }
 
-	public class MenuCommandGruntInteractProcessList : MenuCommand
+    public class MenuCommandGruntInteractProcessList : MenuCommand
     {
-		public MenuCommandGruntInteractProcessList()
+        public MenuCommandGruntInteractProcessList()
         {
             this.Name = "ps";
-			this.Description = "Get a list of currently running processes.";
+            this.Description = "Get a list of currently running processes.";
             this.Parameters = new List<MenuCommandParameter> { };
         }
 
@@ -299,7 +299,7 @@ namespace Elite.Menu.Grunts
 
     public class MenuCommandGruntInteractUpload : MenuCommand
     {
-		public MenuCommandGruntInteractUpload()
+        public MenuCommandGruntInteractUpload()
         {
             this.Name = "Upload";
             this.Description = "Upload a file.";
@@ -335,9 +335,9 @@ namespace Elite.Menu.Grunts
         }
     }
 
-	public class MenuCommandGruntInteractDownload : MenuCommand
+    public class MenuCommandGruntInteractDownload : MenuCommand
     {
-		public MenuCommandGruntInteractDownload()
+        public MenuCommandGruntInteractDownload()
         {
             this.Name = "Download";
             this.Description = "Download a file.";
@@ -418,7 +418,7 @@ namespace Elite.Menu.Grunts
             this.Parameters = new List<MenuCommandParameter> {
                 new MenuCommandParameter {
                     Name = "Assembly Path",
-                    Values = new MenuCommandParameterValuesFromFilePath(Common.EliteDataFolder) 
+                    Values = new MenuCommandParameterValuesFromFilePath(Common.EliteDataFolder)
                 },
                 new MenuCommandParameter { Name = "Type Name" },
                 new MenuCommandParameter { Name = "Method Name" },
@@ -707,7 +707,7 @@ public static class Task
 
     public class MenuCommandGruntInteractMimikatz : MenuCommand
     {
-		public MenuCommandGruntInteractMimikatz()
+        public MenuCommandGruntInteractMimikatz()
         {
             this.Name = "Mimikatz";
             this.Description = "Execute a Mimikatz command.";
@@ -729,20 +729,20 @@ public static class Task
                 GruntInteractMenuItem gruntInteractMenuItem = (GruntInteractMenuItem)menuItem;
                 TaskMenuItem task = (TaskMenuItem)gruntInteractMenuItem.MenuOptions.FirstOrDefault(O => O.MenuTitle == "Task");
                 task.ValidateMenuParameters(new string[] { "Mimikatz" });
-				task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Command " + String.Join(" ", commands.GetRange(1, commands.Count() - 1)));
+                task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Command " + String.Join(" ", commands.GetRange(1, commands.Count() - 1)));
                 task.AdditionalOptions.FirstOrDefault(O => O.Name == "Start").Command(task, "Start");
                 task.LeavingMenuItem();
             }
         }
     }
 
-	public class MenuCommandGruntInteractLogonPasswords : MenuCommand
+    public class MenuCommandGruntInteractLogonPasswords : MenuCommand
     {
-		public MenuCommandGruntInteractLogonPasswords()
+        public MenuCommandGruntInteractLogonPasswords()
         {
             this.Name = "LogonPasswords";
-			this.Description = "Execute the Mimikatz command \"sekurlsa::logonPasswords\".";
-			this.Parameters = new List<MenuCommandParameter>();
+            this.Description = "Execute the Mimikatz command \"sekurlsa::logonPasswords\".";
+            this.Parameters = new List<MenuCommandParameter>();
         }
 
         public override void Command(MenuItem menuItem, string UserInput)
@@ -1373,48 +1373,46 @@ public static class Task
         }
     }
 
-    public class MenuCommandGruntInteractWMI : MenuCommand
+    public class MenuCommandGruntInteractWMICommand : MenuCommand
     {
-        public MenuCommandGruntInteractWMI()
+        public MenuCommandGruntInteractWMICommand()
         {
-            this.Name = "WMI";
-            this.Description = "Obtain a new Grunt through WMI lateral movement by executing a Launcher on a remote system with Win32_Process Create.";
+            this.Name = "WMICommand";
+            this.Description = "Execute a process on a remote system using Win32_Process Create, optionally with alternate credentials.";
             this.Parameters = new List<MenuCommandParameter> {
                 new MenuCommandParameter { Name = "ComputerName" },
+                new MenuCommandParameter { Name = "Command" },
                 new MenuCommandParameter { Name = "Username" },
-                new MenuCommandParameter { Name = "Password" },
-                new MenuCommandParameter { Name = "Launcher" },
-                new MenuCommandParameter { Name = "Command" }
+                new MenuCommandParameter { Name = "Password" }
             };
         }
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
             List<string> commands = Utilities.ParseParameters(UserInput);
-            if (commands.Count() < 5)
+            if (commands.Count() < 3)
             {
-                EliteConsole.PrintFormattedErrorLine("Usage: wmi <computername> <username> <password> [ <launcher> | <command> ]");
+                EliteConsole.PrintFormattedErrorLine("Usage: wmicommand <computername> <command> [ <username> <password> ]");
             }
             else
             {
-                List<string> launchers = menuItem.CovenantClient.ApiLaunchersGet().Select(L => L.Name.ToLower()).ToList();
-
                 GruntInteractMenuItem gruntInteractMenuItem = (GruntInteractMenuItem)menuItem;
                 TaskMenuItem task = (TaskMenuItem)gruntInteractMenuItem.MenuOptions.FirstOrDefault(O => O.MenuTitle == "Task");
-                task.ValidateMenuParameters(new string[] { "WMI" });
+                task.ValidateMenuParameters(new string[] { "WMICommand" });
 
                 task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set ComputerName " + commands[1]);
-                task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Username " + commands[2]);
-                task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Password " + commands[3]);
-                if (commands.Count() == 5 && launchers.Contains(commands[4].ToLower()))
+                task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Command " + commands[2]);
+
+                // TODO: Parsing bug, what if command has a space?
+                if (commands.Count() == 5)
                 {
-                    task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Launcher " + commands[4]);
-                    task.AdditionalOptions.FirstOrDefault(O => O.Name == "Unset").Command(task, "Unset Command");
+                    task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Username " + commands[2]);
+                    task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Password " + commands[3]);
                 }
                 else
                 {
-                    task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Command " + String.Join(" ", commands.GetRange(4, commands.Count() - 4)));
-                    task.AdditionalOptions.FirstOrDefault(O => O.Name == "Unset").Command(task, "Unset Launcher");
+                    task.AdditionalOptions.FirstOrDefault(O => O.Name == "Unset").Command(task, "Unset Username");
+                    task.AdditionalOptions.FirstOrDefault(O => O.Name == "Unset").Command(task, "Unset Password");
                 }
                 task.AdditionalOptions.FirstOrDefault(O => O.Name == "Start").Command(task, "Start");
                 task.LeavingMenuItem();
@@ -1422,15 +1420,69 @@ public static class Task
         }
     }
 
-    public class MenuCommandGruntInteractDCOM : MenuCommand
+    public class MenuCommandGruntInteractWMIGrunt : MenuCommand
     {
-        public MenuCommandGruntInteractDCOM()
+        public MenuCommandGruntInteractWMIGrunt()
         {
-            this.Name = "DCOM";
-            this.Description = "Execute a process on a remote system using various DCOM methods.";
+            this.Name = "WMIGrunt";
+            this.Description = "Execute a Grunt Launcher on a remote system using Win32_Process Create, optionally with alternate credentials.";
             this.Parameters = new List<MenuCommandParameter> {
                 new MenuCommandParameter { Name = "ComputerName" },
                 new MenuCommandParameter { Name = "Launcher" },
+                new MenuCommandParameter { Name = "Username" },
+                new MenuCommandParameter { Name = "Password" }
+            };
+        }
+
+        public override void Command(MenuItem menuItem, string UserInput)
+        {
+            List<string> commands = Utilities.ParseParameters(UserInput);
+            if (commands.Count() != 3 && commands.Count() != 5)
+            {
+                EliteConsole.PrintFormattedErrorLine("Usage: wmigrunt <computername> <launcher> [ <username> <password> ]");
+            }
+            else
+            {
+
+                List<string> launchers = menuItem.CovenantClient.ApiLaunchersGet().Select(L => L.Name.ToLower()).ToList();
+                if (!launchers.Contains(commands[2].ToLower()))
+                {
+                    EliteConsole.PrintFormattedErrorLine("Invalid Launcher name: \"" + commands[2] + "\" specified. Valid Launchers: " + String.Join(",", launchers));
+                    EliteConsole.PrintFormattedErrorLine("Usage: wmigrunt <computername> <launcher> [ <username> <password> ]");
+                }
+                else
+                {
+                    GruntInteractMenuItem gruntInteractMenuItem = (GruntInteractMenuItem)menuItem;
+                    TaskMenuItem task = (TaskMenuItem)gruntInteractMenuItem.MenuOptions.FirstOrDefault(O => O.MenuTitle == "Task");
+                    task.ValidateMenuParameters(new string[] { "WMIGrunt" });
+
+                    task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set ComputerName " + commands[1]);
+                    task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Launcher " + commands[2]);
+                    if (commands.Count() == 5)
+                    {
+                        task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Username " + commands[2]);
+                        task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Password " + commands[3]);
+                    }
+                    else
+                    {
+                        task.AdditionalOptions.FirstOrDefault(O => O.Name == "Unset").Command(task, "Unset Username");
+                        task.AdditionalOptions.FirstOrDefault(O => O.Name == "Unset").Command(task, "Unset Password");
+                    }
+                    task.AdditionalOptions.FirstOrDefault(O => O.Name == "Start").Command(task, "Start");
+                    task.LeavingMenuItem();
+                }
+            }
+        }
+    }
+
+    public class MenuCommandGruntInteractDCOMCommand : MenuCommand
+    {
+        public MenuCommandGruntInteractDCOMCommand()
+        {
+            this.Name = "DCOMCommand";
+            this.Description = "Execute a process on a remote system using various DCOM methods.";
+            this.Parameters = new List<MenuCommandParameter> {
+                new MenuCommandParameter { Name = "ComputerName" },
                 new MenuCommandParameter { Name = "Command" },
                 new MenuCommandParameter { Name = "Method" }
             };
@@ -1441,39 +1493,75 @@ public static class Task
             List<string> commands = Utilities.ParseParameters(UserInput);
             if (commands.Count() < 3)
             {
-                EliteConsole.PrintFormattedErrorLine("Usage: dcom <computername> [ <launcher> | <command> ] [ <method> ]");
+                EliteConsole.PrintFormattedErrorLine("Usage: dcomcommand <computername> <command> [ <method> ]");
+            }
+            else
+            {
+                List<string> methods = new List<string> { "mmc20.application", "mmc20_application", "shellwindows", "shellbrowserwindow", "exceldde" };
+                GruntInteractMenuItem gruntInteractMenuItem = (GruntInteractMenuItem)menuItem;
+                TaskMenuItem task = (TaskMenuItem)gruntInteractMenuItem.MenuOptions.FirstOrDefault(O => O.MenuTitle == "Task");
+                task.ValidateMenuParameters(new string[] { "DCOMCommand" });
+                task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set ComputerName " + commands[1]);
+
+                string command = String.Join(" ", commands.GetRange(2, commands.Count() - 2));
+                if (commands.Count() == 4 && methods.Contains(commands.Last().ToLower()))
+                {
+                    task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Method " + commands.Last());
+                    command = String.Join(" ", commands.GetRange(2, commands.Count() - 3));
+                }
+
+                task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Command " + command);
+                task.AdditionalOptions.FirstOrDefault(O => O.Name == "Start").Command(task, "Start");
+                task.LeavingMenuItem();
+            }
+        }
+    }
+
+    public class MenuCommandGruntInteractDCOMGrunt : MenuCommand
+    {
+        public MenuCommandGruntInteractDCOMGrunt()
+        {
+            this.Name = "DCOMGrunt";
+            this.Description = "Execute a Grunt Launcher on a remote system using various DCOM methods.";
+            this.Parameters = new List<MenuCommandParameter> {
+                new MenuCommandParameter { Name = "ComputerName" },
+                new MenuCommandParameter { Name = "Launcher" },
+                new MenuCommandParameter { Name = "Method" }
+            };
+        }
+
+        public override void Command(MenuItem menuItem, string UserInput)
+        {
+            List<string> commands = Utilities.ParseParameters(UserInput);
+            if (commands.Count() != 3 && commands.Count() != 4)
+            {
+                EliteConsole.PrintFormattedErrorLine("Usage: dcomgrunt <computername> <launcher> [ <method> ]");
             }
             else
             {
                 List<string> launchers = menuItem.CovenantClient.ApiLaunchersGet().Select(L => L.Name.ToLower()).ToList();
+                if (!launchers.Contains(commands[2].ToLower()))
+                {
+                    EliteConsole.PrintFormattedErrorLine("Invalid Launcher name: \"" + commands[2] + "\" specified. Valid Launchers: " + String.Join(",", launchers));
+                    EliteConsole.PrintFormattedErrorLine("Usage: dcomgrunt <computername> <launcher> [ <method> ]");
+                }
 
+                List<string> methods = new List<string> { "mmc20.application", "shellwindows", "shellbrowserwindow", "exceldde" };
+                if (commands.Count() == 4 && !methods.Contains(commands[3].ToLower()))
+                {
+                    EliteConsole.PrintFormattedErrorLine("Invalid DCOM Method: \"" + commands[3] + "\" specified. Valid Methods: " + String.Join(",", methods));
+                    EliteConsole.PrintFormattedErrorLine("Usage: dcomcommand <computername> <command> [ <method> ]");
+                }
                 GruntInteractMenuItem gruntInteractMenuItem = (GruntInteractMenuItem)menuItem;
                 TaskMenuItem task = (TaskMenuItem)gruntInteractMenuItem.MenuOptions.FirstOrDefault(O => O.MenuTitle == "Task");
-                task.ValidateMenuParameters(new string[] { "DCOM" });
+                task.ValidateMenuParameters(new string[] { "DCOMGrunt" });
 
                 task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set ComputerName " + commands[1]);
+                task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Launcher " + commands[2]);
 
-                if (launchers.Contains(commands[2].ToLower()) && commands.Count() <= 4)
+                if (commands.Count() == 4)
                 {
-                    task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Launcher " + commands[2]);
-                    task.AdditionalOptions.FirstOrDefault(O => O.Name == "Unset").Command(task, "Unset Command");
-                    if (commands.Count() == 4)
-                    {
-                        task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Method " + commands[3]);
-                    }
-                }
-                else
-                {
-                    if (new List<string> { "mmc20.application", "mmc20_application", "shellwindows", "shellbrowserwindow", "exceldde"}.Contains(commands.Last()))
-                    {
-                        task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Method " + commands.Last());
-                        task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Command " + String.Join(" ", commands.GetRange(2, commands.Count() - 3)));
-                    }
-                    else
-                    {
-                        task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Command " + String.Join(" ", commands.GetRange(2, commands.Count() - 2)));
-                    }
-                    task.AdditionalOptions.FirstOrDefault(O => O.Name == "Unset").Command(task, "Unset Launcher");
+                    task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Method " + commands[3]);
                 }
                 task.AdditionalOptions.FirstOrDefault(O => O.Name == "Start").Command(task, "Start");
                 task.LeavingMenuItem();
@@ -1481,14 +1569,13 @@ public static class Task
         }
     }
 
-    public class MenuCommandGruntInteractBypassUAC : MenuCommand
+    public class MenuCommandGruntInteractBypassUACCommand : MenuCommand
     {
-        public MenuCommandGruntInteractBypassUAC()
+        public MenuCommandGruntInteractBypassUACCommand()
         {
-            this.Name = "BypassUAC";
-            this.Description = "Obtain a new high-integrity Grunt by bypassing UAC through token duplication.";
+            this.Name = "BypassUACCommand";
+            this.Description = "Bypasses UAC through token duplication and executes a command with high integrity.";
             this.Parameters = new List<MenuCommandParameter> {
-                new MenuCommandParameter { Name = "Launcher" },
                 new MenuCommandParameter { Name = "Command" }
             };
         }
@@ -1498,28 +1585,51 @@ public static class Task
             List<string> commands = Utilities.ParseParameters(UserInput);
             if (commands.Count() < 2)
             {
-                EliteConsole.PrintFormattedErrorLine("Usage: bypassuac [ <launcher> | <command> ]");
+                EliteConsole.PrintFormattedErrorLine("Usage: bypassuaccommand <command>");
+            }
+            else
+            {
+                GruntInteractMenuItem gruntInteractMenuItem = (GruntInteractMenuItem)menuItem;
+                TaskMenuItem task = (TaskMenuItem)gruntInteractMenuItem.MenuOptions.FirstOrDefault(O => O.MenuTitle == "Task");
+                task.ValidateMenuParameters(new string[] { "BypassUACCommand" });
+                task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Command " + String.Join(" ", commands.GetRange(1, commands.Count() - 1)));
+                task.AdditionalOptions.FirstOrDefault(O => O.Name == "Start").Command(task, "Start");
+                task.LeavingMenuItem();
+            }
+        }
+    }
+
+    public class MenuCommandGruntInteractBypassUACGrunt : MenuCommand
+    {
+        public MenuCommandGruntInteractBypassUACGrunt()
+        {
+            this.Name = "BypassUACGrunt";
+            this.Description = "Bypasses UAC through token duplication and executes a Grunt Launcher with high integrity.";
+            this.Parameters = new List<MenuCommandParameter> {
+                new MenuCommandParameter { Name = "Launcher" }
+            };
+        }
+
+        public override void Command(MenuItem menuItem, string UserInput)
+        {
+            List<string> commands = Utilities.ParseParameters(UserInput);
+            if (commands.Count() != 2)
+            {
+                EliteConsole.PrintFormattedErrorLine("Usage: bypassuacgrunt <launcher>");
             }
             else
             {
                 List<string> launchers = menuItem.CovenantClient.ApiLaunchersGet().Select(L => L.Name.ToLower()).ToList();
+                if (!launchers.Contains(commands[1].ToLower()))
+                {
+                    EliteConsole.PrintFormattedErrorLine("Invalid Launcher name: \"" + commands[1] + "\" specified. Valid Launchers: " + String.Join(",", launchers));
+                    EliteConsole.PrintFormattedErrorLine("Usage: bypassuacgrunt <launcher>");
+                }
 
                 GruntInteractMenuItem gruntInteractMenuItem = (GruntInteractMenuItem)menuItem;
                 TaskMenuItem task = (TaskMenuItem)gruntInteractMenuItem.MenuOptions.FirstOrDefault(O => O.MenuTitle == "Task");
-                task.ValidateMenuParameters(new string[] { "BypassUAC" });
+                task.ValidateMenuParameters(new string[] { "BypassUACGrunt" });
                 task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Launcher " + commands[1]);
-
-                if (commands.Count() == 2 && launchers.Contains(commands[1].ToLower()))
-                {
-                    task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Launcher " + commands[1]);
-                    task.AdditionalOptions.FirstOrDefault(O => O.Name == "Unset").Command(task, "Unset Command");
-                }
-                else
-                {
-                    task.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(task, "Set Command " + String.Join(" ", commands.GetRange(1, commands.Count() - 1)));
-                    task.AdditionalOptions.FirstOrDefault(O => O.Name == "Unset").Command(task, "Unset Launcher");
-                }
-
                 task.AdditionalOptions.FirstOrDefault(O => O.Name == "Start").Command(task, "Start");
                 task.LeavingMenuItem();
             }
@@ -1549,11 +1659,11 @@ public static class Task
             if (commands.Count() != 2)
             {
                 EliteConsole.PrintFormattedErrorLine("Invalid TaskOutput command. Usage is: TaskOutput <completed_task_name>");
-                EliteConsole.PrintFormattedErrorLine("Valid completed TaskNames are: " + String.Join(", ", completedgruntTaskingNames));
+                EliteConsole.PrintFormattedErrorLine("Valid completed TaskNames: " + String.Join(", ", completedgruntTaskingNames));
             }
             else if (!completedgruntTaskingNames.Contains(commands[1].ToLower()))
             {
-                EliteConsole.PrintFormattedErrorLine("Invalid TaskName. Valid completed TaskNames are: " + String.Join(", ", completedgruntTaskingNames));
+                EliteConsole.PrintFormattedErrorLine("Invalid TaskName. Valid completed TaskNames: " + String.Join(", ", completedgruntTaskingNames));
             }
             else
             {
@@ -1611,8 +1721,8 @@ public static class Task
         public Grunt grunt { get; set; }
 
         public string PowerShellImport { get; set; } = "";
-        
-		public GruntInteractMenuItem(CovenantAPI CovenantClient, EventPrinter EventPrinter) : base(CovenantClient, EventPrinter)
+
+        public GruntInteractMenuItem(CovenantAPI CovenantClient, EventPrinter EventPrinter) : base(CovenantClient, EventPrinter)
         {
             this.MenuTitle = "Interact";
             this.MenuDescription = "Interact with a Grunt.";
@@ -1629,8 +1739,8 @@ public static class Task
             this.AdditionalOptions.Add(new MenuCommandGruntInteractSet(this.CovenantClient));
             this.AdditionalOptions.Add(new MenuCommandGruntInteractWhoAmI());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractListDirectory());
-			this.AdditionalOptions.Add(new MenuCommandGruntInteractChangeDirectory());
-			this.AdditionalOptions.Add(new MenuCommandGruntInteractProcessList());
+            this.AdditionalOptions.Add(new MenuCommandGruntInteractChangeDirectory());
+            this.AdditionalOptions.Add(new MenuCommandGruntInteractProcessList());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractRegistryRead());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractRegistryWrite());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractUpload());
@@ -1643,7 +1753,7 @@ public static class Task
             this.AdditionalOptions.Add(new MenuCommandGruntInteractPowerShellImport());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractPortScan());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractMimikatz());
-			this.AdditionalOptions.Add(new MenuCommandGruntInteractLogonPasswords());
+            this.AdditionalOptions.Add(new MenuCommandGruntInteractLogonPasswords());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractSamDump());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractLsaSecrets());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractDCSync());
@@ -1661,9 +1771,12 @@ public static class Task
             this.AdditionalOptions.Add(new MenuCommandGruntInteractGetSystem());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractMakeToken());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractRevertToSelf());
-            this.AdditionalOptions.Add(new MenuCommandGruntInteractWMI());
-            this.AdditionalOptions.Add(new MenuCommandGruntInteractDCOM());
-            this.AdditionalOptions.Add(new MenuCommandGruntInteractBypassUAC());
+            this.AdditionalOptions.Add(new MenuCommandGruntInteractWMICommand());
+            this.AdditionalOptions.Add(new MenuCommandGruntInteractWMIGrunt());
+            this.AdditionalOptions.Add(new MenuCommandGruntInteractDCOMCommand());
+            this.AdditionalOptions.Add(new MenuCommandGruntInteractDCOMGrunt());
+            this.AdditionalOptions.Add(new MenuCommandGruntInteractBypassUACCommand());
+            this.AdditionalOptions.Add(new MenuCommandGruntInteractBypassUACGrunt());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractTaskOutput(this.CovenantClient));
             this.AdditionalOptions.Add(new MenuCommandGruntInteractConnect(this.CovenantClient));
 
@@ -1684,12 +1797,7 @@ public static class Task
                     .Where(GT => GT.Status == GruntTaskingStatus.Completed)
                     .Select(GT => new MenuCommandParameterValue { Value = GT.Name })
                     .ToList();
-
-            this.AdditionalOptions.FirstOrDefault(AO => AO.Name == "BypassUAC").Parameters.FirstOrDefault().Values =
-                    this.CovenantClient.ApiLaunchersGet()
-                    .Select(L => new MenuCommandParameterValue { Value = L.Name })
-                    .ToList();
-
+                    
             this.SetupMenuAutoComplete();
         }
 
