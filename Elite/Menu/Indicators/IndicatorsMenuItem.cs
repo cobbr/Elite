@@ -11,12 +11,12 @@ using Covenant.API.Models;
 
 namespace Elite.Menu.Indicators
 {
-    public class MenuCommandListenersShow : MenuCommand
+    public class MenuCommandIndicatorsShow : MenuCommand
     {
-        public MenuCommandListenersShow()
+        public MenuCommandIndicatorsShow()
         {
             this.Name = "Show";
-            this.Description = "Show Listener types";
+            this.Description = "Show Indicators";
             this.Parameters = new List<MenuCommandParameter>();
         }
 
@@ -104,7 +104,7 @@ namespace Elite.Menu.Indicators
             this.MenuTitle = "Indicators";
             this.MenuDescription = "Displays list of indicators.";
 
-            this.AdditionalOptions.Add(new MenuCommandListenersShow());
+            this.AdditionalOptions.Add(new MenuCommandIndicatorsShow());
             this.Refresh();
         }
 

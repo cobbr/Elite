@@ -74,6 +74,10 @@ namespace Elite
                     if (e.InnerException.GetType().Name == "SocketException")
                     {
                         EliteConsole.PrintFormattedErrorLine("Could not connect to Covenant at: " + CovenantComputerName);
+                        if (CovenantComputerName.ToLower() == "localhost" || CovenantComputerName == "127.0.0.1")
+                        {
+                            EliteConsole.PrintFormattedErrorLine("Are you using Docker? Elite cannot connect over the loopback address while using Docker, because Covenant is not running within the Elite docker container.");
+                        }
                         return -1;
                     }
                     else if (e.InnerException.GetType().Name == "AuthenticationException")
@@ -82,9 +86,8 @@ namespace Elite
                     }
                     return -2;
                 }
-                catch (HttpOperationException e)
+                catch (HttpOperationException)
                 {
-                    EliteConsole.PrintFormattedErrorLine("error: " + e.Message + e.StackTrace);
                     EliteConsole.PrintFormattedErrorLine("Incorrect password for user: " + username);
                     return -3;
                 }

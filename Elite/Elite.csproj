@@ -24,5 +24,6 @@
     <Folder Include="Menu\Grunts\" />
     <Folder Include="Menu\Users\" />
     <Folder Include="Menu\Indicators\" />
+    <Folder Include="Menu\Credentials\" />
   </ItemGroup>
 </Project>
