@@ -31,11 +31,21 @@ namespace Elite.Menu.Grunts
             Grunt grunt = gruntInteractMenuItem.grunt;
             EliteConsoleMenu menu = new EliteConsoleMenu(EliteConsoleMenu.EliteConsoleMenuType.Parameter, "Grunt: " + grunt.Name);
             menu.Rows.Add(new List<string> { "Name:", grunt.Name });
+            menu.Rows.Add(new List<string> { "CommType:", grunt.CommType.ToString() });
+            menu.Rows.Add(new List<string> { "Connected Grunts:", String.Join(",", grunt.ChildGrunts.Split(",").Select(C => {
+                try
+                {
+                    return this.CovenantClient.ApiGruntsGuidByGuidGet(C).Name;
+                }
+                catch (Exception) { return null; }
+            }).Where(C => C != null)) });
+            menu.Rows.Add(new List<string> { "Hostname:", grunt.Hostname });
+            menu.Rows.Add(new List<string> { "IPAdress:", grunt.IpAddress });
             menu.Rows.Add(new List<string> { "User:", grunt.UserDomainName + "\\" + grunt.UserName });
-            menu.Rows.Add(new List<string> { "Integrity:", grunt.Integrity.ToString() });
             menu.Rows.Add(new List<string> { "Status:", grunt.Status.ToString() });
-            menu.Rows.Add(new List<string> { "LastCheckIn:", grunt.LastCheckIn });
-            menu.Rows.Add(new List<string> { "ComputerName:", grunt.IpAddress });
+            menu.Rows.Add(new List<string> { "LastCheckIn:", grunt.LastCheckIn.ToString() });
+            menu.Rows.Add(new List<string> { "ActivationTime:", grunt.ActivationTime.ToString() });
+            menu.Rows.Add(new List<string> { "Integrity:", grunt.Integrity.ToString() });
             menu.Rows.Add(new List<string> { "OperatingSystem:", grunt.OperatingSystem });
             menu.Rows.Add(new List<string> { "Process:", grunt.Process });
             menu.Rows.Add(new List<string> { "Delay:", grunt.Delay.ToString() });
@@ -1636,15 +1646,22 @@ public static class Task
         }
     }
 
-    public class MenuCommandGruntInteractTaskOutput : MenuCommand
+    public class MenuCommandGruntInteractHistory : MenuCommand
     {
-        public MenuCommandGruntInteractTaskOutput(CovenantAPI CovenantClient) : base(CovenantClient)
+        public MenuCommandGruntInteractHistory(CovenantAPI CovenantClient) : base(CovenantClient)
         {
-            this.Name = "TaskOutput";
-            this.Description = "Show the output of a completed task.";
+            this.Name = "History";
+            this.Description = "Show the output of completed task(s).";
             this.Parameters = new List<MenuCommandParameter> {
-                new MenuCommandParameter { Name = "Completed Task Name" }
+                new MenuCommandParameter { Name = "Task" }
             };
+        }
+
+        private void PrintTasking(GruntTasking tasking, Grunt grunt)
+        {
+            EliteConsole.PrintFormattedInfoLine("[" + tasking.CompletionTime + " UTC] Grunt: " + grunt.Name + " " + "GruntTasking: " + tasking.Name);
+            EliteConsole.PrintFormattedInfoLine("(" + tasking.TaskingUser + ") > " + tasking.TaskingCommand);
+            EliteConsole.PrintInfoLine(tasking.GruntTaskOutput);
         }
 
         public override void Command(MenuItem menuItem, string UserInput)
@@ -1654,21 +1671,44 @@ public static class Task
             gruntInteractMenuItem.grunt = this.CovenantClient.ApiGruntsByIdGet(gruntInteractMenuItem.grunt.Id ?? default);
             List<string> commands = Utilities.ParseParameters(UserInput);
             List<GruntTasking> completedGruntTaskings = this.CovenantClient.ApiGruntsByIdTaskingsGet(gruntInteractMenuItem.grunt.Id ?? default)
-                                                      .Where(T => T.Status == GruntTaskingStatus.Completed).ToList();
+                                                      .Where(T => T.Status == GruntTaskingStatus.Completed).OrderBy(T => T.CompletionTime).ToList();
             List<string> completedgruntTaskingNames = completedGruntTaskings.Select(T => T.Name.ToLower()).ToList();
-            if (commands.Count() != 2)
+            if (commands.Count() != 2 && commands.Count() != 1)
             {
-                EliteConsole.PrintFormattedErrorLine("Invalid TaskOutput command. Usage is: TaskOutput <completed_task_name>");
+                EliteConsole.PrintFormattedErrorLine("Invalid History command. Usage is: History [ <completed_task_name> | <task_quantity> ]");
                 EliteConsole.PrintFormattedErrorLine("Valid completed TaskNames: " + String.Join(", ", completedgruntTaskingNames));
+                return;
             }
-            else if (!completedgruntTaskingNames.Contains(commands[1].ToLower()))
+            int quantity = completedGruntTaskings.Count();
+            if (commands.Count() == 1)
             {
-                EliteConsole.PrintFormattedErrorLine("Invalid TaskName. Valid completed TaskNames: " + String.Join(", ", completedgruntTaskingNames));
+                foreach (GruntTasking tasking in completedGruntTaskings)
+                {
+                    this.PrintTasking(tasking, gruntInteractMenuItem.grunt);
+                }
             }
             else
             {
-                EliteConsole.PrintFormattedInfoLine("TaskName: " + commands[1] + " Output:");
-                EliteConsole.PrintInfoLine(completedGruntTaskings.FirstOrDefault(GT => GT.Name.ToLower() == commands[1].ToLower()).GruntTaskOutput);
+                bool isQuantity = int.TryParse(commands[1], out quantity);
+                if (completedgruntTaskingNames.Contains(commands[1].ToLower()))
+                {
+                    GruntTasking tasking = completedGruntTaskings.FirstOrDefault(GT => GT.Name.ToLower() == commands[1].ToLower());
+                    this.PrintTasking(tasking, gruntInteractMenuItem.grunt);
+                }
+                else if (isQuantity)
+                {
+                    List<GruntTasking> quantityTaskings = completedGruntTaskings.TakeLast(quantity).ToList();
+                    foreach (GruntTasking tasking in quantityTaskings)
+                    {
+                        this.PrintTasking(tasking, gruntInteractMenuItem.grunt);
+                    }
+                }
+                else
+                {
+                    EliteConsole.PrintFormattedErrorLine("Invalid History command. Usage is: History [ <completed_task_name> | <task_quantity> ]");
+                    EliteConsole.PrintFormattedErrorLine("Valid completed TaskNames: " + String.Join(", ", completedgruntTaskingNames));
+                    return;
+                }
             }
         }
     }
@@ -1711,6 +1751,57 @@ public static class Task
                 GruntTaskOutput = "",
                 SetType = GruntSetTaskingType.Delay,
                 Value = commands[1] + "," + PipeName
+            };
+            this.CovenantClient.ApiGruntsByIdTaskingsPost(gruntInteractMenuItem.grunt.Id ?? default, gruntTasking);
+        }
+    }
+
+    public class MenuCommandGruntInteractDisconnect : MenuCommand
+    {
+        public MenuCommandGruntInteractDisconnect(CovenantAPI CovenantClient) : base(CovenantClient)
+        {
+            this.Name = "Disconnect";
+            this.Description = "Disconnect to a Grunt using a named pipe.";
+            this.Parameters = new List<MenuCommandParameter> {
+                new MenuCommandParameter { Name = "ChildGruntName" }
+            };
+        }
+
+        public override void Command(MenuItem menuItem, string UserInput)
+        {
+            menuItem.Refresh();
+            GruntInteractMenuItem gruntInteractMenuItem = (GruntInteractMenuItem)menuItem;
+            string[] commands = UserInput.Split(" ");
+            if (commands.Length != 2 || commands[0].ToLower() != "disconnect")
+            {
+                menuItem.PrintInvalidOptionError(UserInput);
+                return;
+            }
+            Grunt grunt = this.CovenantClient.ApiGruntsGet().FirstOrDefault(G => G.Name == commands[1]);
+            if (grunt == null)
+            {
+                EliteConsole.PrintFormattedErrorLine("Invalid GruntName selected: " + commands[1]);
+                menuItem.PrintInvalidOptionError(UserInput);
+                return;
+            }
+            List<string> childrenGruntGuids = gruntInteractMenuItem.grunt.ChildGrunts.Split(",").ToList();
+            if (!childrenGruntGuids.Contains(grunt.Guid))
+            {
+                EliteConsole.PrintFormattedErrorLine("Grunt: \"" + commands[1] + "\" is not a child Grunt");
+                menuItem.PrintInvalidOptionError(UserInput);
+                return;
+            }
+            GruntTasking gruntTasking = new GruntTasking
+            {
+                Id = 0,
+                GruntId = gruntInteractMenuItem.grunt.Id,
+                TaskId = 1,
+                Name = Guid.NewGuid().ToString().Replace("-", "").Substring(0, 10),
+                Status = GruntTaskingStatus.Uninitialized,
+                Type = GruntTaskingType.Disconnect,
+                GruntTaskOutput = "",
+                SetType = GruntSetTaskingType.Delay,
+                Value = grunt.Guid
             };
             this.CovenantClient.ApiGruntsByIdTaskingsPost(gruntInteractMenuItem.grunt.Id ?? default, gruntTasking);
         }
@@ -1777,8 +1868,9 @@ public static class Task
             this.AdditionalOptions.Add(new MenuCommandGruntInteractDCOMGrunt());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractBypassUACCommand());
             this.AdditionalOptions.Add(new MenuCommandGruntInteractBypassUACGrunt());
-            this.AdditionalOptions.Add(new MenuCommandGruntInteractTaskOutput(this.CovenantClient));
             this.AdditionalOptions.Add(new MenuCommandGruntInteractConnect(this.CovenantClient));
+            this.AdditionalOptions.Add(new MenuCommandGruntInteractDisconnect(this.CovenantClient));
+            this.AdditionalOptions.Add(new MenuCommandGruntInteractHistory(this.CovenantClient));
 
             this.SetupMenuAutoComplete();
         }
@@ -1792,12 +1884,22 @@ public static class Task
                                                                        .Select(G => new MenuCommandParameterValue { Value = G.Name }).ToList();
             this.MenuItemParameters.FirstOrDefault(P => P.Name == "Grunt Name").Values = gruntNames;
 
-            this.AdditionalOptions.FirstOrDefault(AO => AO.Name == "TaskOutput").Parameters.FirstOrDefault().Values =
+            this.AdditionalOptions.FirstOrDefault(AO => AO.Name == "History").Parameters.FirstOrDefault().Values =
                     this.CovenantClient.ApiGruntsByIdTaskingsGet(this.grunt.Id ?? default)
                     .Where(GT => GT.Status == GruntTaskingStatus.Completed)
                     .Select(GT => new MenuCommandParameterValue { Value = GT.Name })
                     .ToList();
-                    
+
+            this.AdditionalOptions.FirstOrDefault(AO => AO.Name == "Disconnect").Parameters.FirstOrDefault().Values =
+                this.grunt.ChildGrunts.Split(",").Select(C =>
+                {
+                    try
+                    {
+                        return new MenuCommandParameterValue { Value = this.CovenantClient.ApiGruntsGuidByGuidGet(C).Name };
+                    }
+                    catch (Exception) { return null; }
+                }).Where(C => C != null).ToList();
+
             this.SetupMenuAutoComplete();
         }
 

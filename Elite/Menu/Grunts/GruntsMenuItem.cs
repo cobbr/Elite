@@ -26,16 +26,17 @@ namespace Elite.Menu.Grunts
             List<Grunt> displayGrunts = gruntsMenuItem.Grunts.Where(G => G.Status != GruntStatus.Uninitialized && !gruntsMenuItem.HiddenGruntNames.Contains(G.Name)).ToList();
             EliteConsoleMenu menu = new EliteConsoleMenu(EliteConsoleMenu.EliteConsoleMenuType.List, "Grunts");
             menu.Columns.Add("Name");
-            menu.Columns.Add("User");
-            menu.Columns.Add("Integrity");
+            menu.Columns.Add("CommType");
             menu.Columns.Add("ComputerName");
-            menu.Columns.Add("OperatingSystem");
-            menu.Columns.Add("Process");
+            menu.Columns.Add("User");
             menu.Columns.Add("Status");
             menu.Columns.Add("Last Check In");
+            menu.Columns.Add("Integrity");
+            menu.Columns.Add("OperatingSystem");
+            menu.Columns.Add("Process");
             displayGrunts.ForEach(G =>
             {
-                menu.Rows.Add(new List<string> { G.Name, G.UserDomainName + "\\" + G.UserName, G.Integrity.ToString(), G.IpAddress, G.OperatingSystem, G.Process, G.Status.ToString(), G.LastCheckIn });
+                menu.Rows.Add(new List<string> { G.Name, G.CommType.ToString(), G.Hostname, G.UserDomainName + "\\" + G.UserName, G.Status.ToString(), G.LastCheckIn.ToString(), G.Integrity.ToString(), G.OperatingSystem, G.Process });
             });
             menu.Print();
         }

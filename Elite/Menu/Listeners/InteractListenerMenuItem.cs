@@ -35,6 +35,7 @@ namespace Elite.Menu.Listeners
                     HttpProfile httpProfile = this.CovenantClient.ApiListenersByIdProfileGet(httpListener.Id ?? default);
                     menu.Rows.Add(new List<string> { "Name:", httpListener.Name });
                     menu.Rows.Add(new List<string> { "Status:", httpListener.Status.ToString() });
+                    menu.Rows.Add(new List<string> { "StartTime:", httpListener.StartTime.ToString() });
                     menu.Rows.Add(new List<string> { "Description:", httpListener.Description });
                     menu.Rows.Add(new List<string> { "URL:", httpListener.Url });
                     menu.Rows.Add(new List<string> { "  ConnectAddress:", httpListener.ConnectAddress });
@@ -80,14 +81,6 @@ namespace Elite.Menu.Listeners
                         break;
                 }
                 listenerInteractMenuItem.Refresh();
-				// EliteConsole.PrintFormattedHighlightLine("Started Listener: " + listenerInteractMenuItem.listener.Name);
-				EventModel eventModel = new EventModel {
-					Message = "Started Listener: " + listenerInteractMenuItem.listener.Name,
-					Level = EventLevel.Highlight,
-					Context = "*"
-				};
-                eventModel = this.CovenantClient.ApiEventsPost(eventModel);
-                this.EventPrinter.PrintEvent(eventModel);
             }
         }
     }
@@ -120,13 +113,6 @@ namespace Elite.Menu.Listeners
                         break;
                 }
                 listenerInteractMenuItem.Refresh();
-				EventModel eventModel = new EventModel {
-					Message = "Stopped Listener: " + listenerInteractMenuItem.listener.Name,
-					Level = EventLevel.Warning,
-					Context = "*"
-				};
-                eventModel = this.CovenantClient.ApiEventsPost(eventModel);
-                this.EventPrinter.PrintEvent(eventModel);
             }
         }
     }

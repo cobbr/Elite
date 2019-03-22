@@ -31,8 +31,10 @@ namespace Elite.Menu.Launchers
             menu.Rows.Add(new List<string> { "Name:", launcher.Name });
             menu.Rows.Add(new List<string> { "Description:", launcher.Description });
             menu.Rows.Add(new List<string> { "ListenerName:", listener == null ? "" : listener.Name });
+            menu.Rows.Add(new List<string> { "CommType:", launcher.CommType.ToString() });
+            menu.Rows.Add(new List<string> { "  SMBPipeName:", launcher.SmbPipeName });
+            menu.Rows.Add(new List<string> { "DotNetFramework:", launcher.DotNetFrameworkVersion == DotNetVersion.Net35 ? "v3.5" : "v4.0" });
             menu.Rows.Add(new List<string> { "ScriptLanguage:", launcher.ScriptLanguage.ToString() });
-            menu.Rows.Add(new List<string> { "DotNetFramework:", launcher.DotNetFrameworkVersion.ToString() });
             menu.Rows.Add(new List<string> { "Delay:", (launcher.Delay ?? default).ToString() });
             menu.Rows.Add(new List<string> { "Jitter:", (launcher.Jitter ?? default).ToString() });
             menu.Rows.Add(new List<string> { "ConnectAttempts:", (launcher.ConnectAttempts ?? default).ToString() });
@@ -213,6 +215,11 @@ namespace Elite.Menu.Launchers
                                             .Select(L => L.Name).ToList()
                         },
                         new MenuCommandParameterValue {
+                            Value = "CommType",
+                            NextValueSuggestions = new List<string> { "HTTP", "SMB" }
+                        },
+                        new MenuCommandParameterValue { Value = "SMBPipeName" },
+                        new MenuCommandParameterValue {
                             Value = "ScriptLanguage",
                             NextValueSuggestions = new List<string> { "JScript", "VBScript" }
                         },
@@ -255,6 +262,22 @@ namespace Elite.Menu.Launchers
                         cscriptLauncher.ListenerId = listener.Id;
                     }
                 }
+                else if (commands[1].ToLower() == "commtype")
+                {
+                    if (commands[2].ToLower() == "smb")
+                    {
+                        cscriptLauncher.CommType = CommunicationType.SMB;
+                    }
+                    else
+                    {
+                        cscriptLauncher.CommType = CommunicationType.HTTP;
+                    }
+                }
+                else if (commands[1].ToLower() == "smbpipename")
+                {
+                    cscriptLauncher.SmbPipeName = commands[2];
+                }
+
                 else if (commands[1].ToLower() == "dotnetframeworkversion")
                 {
                     if (commands[2].ToLower().Contains("35") || commands[2].ToLower().Contains("3.5"))

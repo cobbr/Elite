@@ -5,6 +5,7 @@
 using System;
 using System.Linq;
 using System.Collections.Generic;
+using Microsoft.Rest;
 
 using Covenant.API;
 using Covenant.API.Models;
@@ -86,11 +87,19 @@ namespace Elite.Menu.Tasks
             GruntTask task = ((TaskMenuItem)menuItem).task = this.CovenantClient.ApiGruntTasksByIdGet(((TaskMenuItem)menuItem).task.Id ?? default);
             Grunt grunt = ((TaskMenuItem)menuItem).grunt;
             GruntTasking gruntTasking = new GruntTasking { TaskId = task.Id, GruntId = grunt.Id };
-            GruntTasking postedGruntTasking = this.CovenantClient.ApiGruntsByIdTaskingsPost(grunt.Id ?? default, gruntTasking);
-
-            if (postedGruntTasking != null)
+            gruntTasking.TaskingCommand = task.Name + " " + String.Join(' ', task.Options.Select(O => "/" + O.Name.ToLower() + " " + O.Value).ToList());
+            try
             {
-                EliteConsole.PrintFormattedHighlightLine("Started Task: " + task.Name + " on Grunt: " + grunt.Name + " as GruntTask: " + postedGruntTasking.Name);
+                GruntTasking postedGruntTasking = this.CovenantClient.ApiGruntsByIdTaskingsPost(grunt.Id ?? default, gruntTasking);
+
+                if (postedGruntTasking != null)
+                {
+                    EliteConsole.PrintFormattedHighlightLine("Started Task: " + task.Name + " on Grunt: " + grunt.Name + " as GruntTask: " + postedGruntTasking.Name);
+                }
+            }
+            catch (HttpOperationException)
+            {
+                EliteConsole.PrintFormattedErrorLine("Failed starting task: " + task.Name + " on Grunt: " + grunt.Name);
             }
         }
     }

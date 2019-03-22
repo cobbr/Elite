@@ -31,9 +31,11 @@ namespace Elite.Menu.Launchers
             menu.Rows.Add(new List<string> { "Name:", launcher.Name });
             menu.Rows.Add(new List<string> { "Description:", launcher.Description });
             menu.Rows.Add(new List<string> { "ListenerName:", listener == null ? "" : listener.Name });
+            menu.Rows.Add(new List<string> { "CommType:", launcher.CommType.ToString() });
+            menu.Rows.Add(new List<string> { "  SMBPipeName:", launcher.SmbPipeName });
+            menu.Rows.Add(new List<string> { "DotNetFramework:", launcher.DotNetFrameworkVersion == DotNetVersion.Net35 ? "v3.5" : "v4.0" });
             menu.Rows.Add(new List<string> { "TargetName:", launcher.TargetName });
             menu.Rows.Add(new List<string> { "TaskName:", launcher.TaskName });
-            menu.Rows.Add(new List<string> { "DotNetFramework:", launcher.DotNetFrameworkVersion.ToString() });
             menu.Rows.Add(new List<string> { "Delay:", (launcher.Delay ?? default).ToString() });
             menu.Rows.Add(new List<string> { "Jitter:", (launcher.Jitter ?? default).ToString() });
             menu.Rows.Add(new List<string> { "ConnectAttempts:", (launcher.ConnectAttempts ?? default).ToString() });
@@ -216,12 +218,17 @@ namespace Elite.Menu.Launchers
                                             .Where(L => L.Status == ListenerStatus.Active)
                                             .Select(L => L.Name).ToList()
                         },
-                        new MenuCommandParameterValue { Value = "TargetName" },
-                        new MenuCommandParameterValue { Value = "TaskName" },
+                        new MenuCommandParameterValue {
+                            Value = "CommType",
+                            NextValueSuggestions = new List<string> { "HTTP", "SMB" }
+                        },
+                        new MenuCommandParameterValue { Value = "SMBPipeName" },
                         new MenuCommandParameterValue {
                             Value = "DotNetFrameworkVersion",
                             NextValueSuggestions = new List<string> { "net35", "net40" }
                         },
+                        new MenuCommandParameterValue { Value = "TargetName" },
+                        new MenuCommandParameterValue { Value = "TaskName" },
                         new MenuCommandParameterValue { Value = "Delay" },
                         new MenuCommandParameterValue { Value = "Jitter" },
                         new MenuCommandParameterValue { Value = "ConnectAttempts" },
@@ -281,6 +288,21 @@ namespace Elite.Menu.Launchers
                         menuItem.PrintInvalidOptionError(UserInput);
                         return;
                     }
+                }
+                else if (commands[1].ToLower() == "commtype")
+                {
+                    if (commands[2].ToLower() == "smb")
+                    {
+                        msbuildLauncher.CommType = CommunicationType.SMB;
+                    }
+                    else
+                    {
+                        msbuildLauncher.CommType = CommunicationType.HTTP;
+                    }
+                }
+                else if (commands[1].ToLower() == "smbpipename")
+                {
+                    msbuildLauncher.SmbPipeName = commands[2];
                 }
                 else if (commands[1].ToLower() == "delay")
                 {

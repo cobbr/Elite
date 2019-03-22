@@ -31,10 +31,10 @@ namespace Elite.Menu.Launchers
             menu.Rows.Add(new List<string> { "Name:", launcher.Name });
             menu.Rows.Add(new List<string> { "Description:", launcher.Description });
             menu.Rows.Add(new List<string> { "ListenerName:", listener == null ? "" : listener.Name });
-            menu.Rows.Add(new List<string> { "ParameterString:", launcher.ParameterString });
+            menu.Rows.Add(new List<string> { "CommType:", launcher.CommType.ToString() });
+            menu.Rows.Add(new List<string> { "  SMBPipeName:", launcher.SmbPipeName });
             menu.Rows.Add(new List<string> { "DotNetFramework:", launcher.DotNetFrameworkVersion == DotNetVersion.Net35 ? "v3.5" : "v4.0" });
-            menu.Rows.Add(new List<string> { "UsePipes:", (launcher.UsePipes ?? default).ToString() });
-            menu.Rows.Add(new List<string> { "PipeName:", launcher.PipeName });
+            menu.Rows.Add(new List<string> { "ParameterString:", launcher.ParameterString });
             menu.Rows.Add(new List<string> { "Delay:", (launcher.Delay ?? default).ToString() });
             menu.Rows.Add(new List<string> { "Jitter:", (launcher.Jitter ?? default).ToString() });
             menu.Rows.Add(new List<string> { "ConnectAttempts:", (launcher.ConnectAttempts ?? default).ToString() });
@@ -213,16 +213,16 @@ namespace Elite.Menu.Launchers
                                             .Where(L => L.Status == ListenerStatus.Active)
                                             .Select(L => L.Name).ToList()
                         },
-                        new MenuCommandParameterValue { Value = "ParameterString" },
+                        new MenuCommandParameterValue {
+                            Value = "CommType",
+                            NextValueSuggestions = new List<string> { "HTTP", "SMB" }
+                        },
+                        new MenuCommandParameterValue { Value = "SMBPipeName" },
                         new MenuCommandParameterValue {
                             Value = "DotNetFrameworkVersion",
                             NextValueSuggestions = new List<string> { "net35", "net40" }
                         },
-                        new MenuCommandParameterValue {
-                            Value = "UsePipes",
-                            NextValueSuggestions = new List<string> { "true", "false" }
-                        },
-                        new MenuCommandParameterValue { Value = "PipeName" },
+                        new MenuCommandParameterValue { Value = "ParameterString" },
                         new MenuCommandParameterValue { Value = "Delay" },
                         new MenuCommandParameterValue { Value = "Jitter" },
                         new MenuCommandParameterValue { Value = "ConnectAttempts" },
@@ -270,20 +270,20 @@ namespace Elite.Menu.Launchers
                         PowerShellLauncher.DotNetFrameworkVersion = DotNetVersion.Net40;
                     }
                 }
-                else if (commands[1].ToLower() == "usepipes")
+                else if (commands[1].ToLower() == "commtype")
                 {
-                    if (commands[2].ToLower().StartsWith("t"))
+                    if (commands[2].ToLower() == "smb")
                     {
-                        PowerShellLauncher.UsePipes = true;
+                        PowerShellLauncher.CommType = CommunicationType.SMB;
                     }
                     else
                     {
-                        PowerShellLauncher.UsePipes = false;
+                        PowerShellLauncher.CommType = CommunicationType.HTTP;
                     }
                 }
-                else if (commands[1].ToLower() == "pipename")
+                else if (commands[1].ToLower() == "smbpipename")
                 {
-                    PowerShellLauncher.PipeName = commands[2];
+                    PowerShellLauncher.SmbPipeName = commands[2];
                 }
                 else if (commands[1].ToLower() == "delay")
                 {

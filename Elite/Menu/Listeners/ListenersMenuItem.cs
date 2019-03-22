@@ -38,6 +38,7 @@ namespace Elite.Menu.Listeners
             instanceMenu.Columns.Add("Name");
             instanceMenu.Columns.Add("TypeName");
             instanceMenu.Columns.Add("Status");
+            instanceMenu.Columns.Add("StartTime");
             instanceMenu.Columns.Add("BindAddress");
             instanceMenu.Columns.Add("BindPort");
             listenersMenu.Listeners.ToList().ForEach(L =>
@@ -46,6 +47,7 @@ namespace Elite.Menu.Listeners
                     L.Name,
                     listenersMenu.ListenerTypes.FirstOrDefault(LT => LT.Id == L.ListenerTypeId).Name,
                     L.Status.ToString(),
+                    L.StartTime.ToString(),
                     L.BindAddress,
                     L.BindPort.ToString()
                 });

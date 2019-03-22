@@ -80,13 +80,6 @@ namespace Elite.Menu.Listeners
             httpListenerMenuItem.httpListener.Status = ListenerStatus.Active;
             httpListenerMenuItem.httpListener = this.CovenantClient.ApiListenersHttpPut(httpListenerMenuItem.httpListener);
 
-			EventModel eventModel = new EventModel {
-				Message = "Started HTTP Listener: " + httpListenerMenuItem.httpListener.Name + " at: " + httpListenerMenuItem.httpListener.Url,
-				Level = EventLevel.Highlight,
-				Context = "*"
-			};
-			eventModel = this.CovenantClient.ApiEventsPost(eventModel);
-			this.EventPrinter.PrintEvent(eventModel);
             httpListenerMenuItem.RefreshHTTPTemplate();
             httpListenerMenuItem.Refresh();
         }

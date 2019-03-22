@@ -80,25 +80,12 @@ namespace Elite.Menu.Users
 			CovenantUser user = this.CovenantClient.ApiUsersPost(new CovenantUserLogin(commands[1], commands[2]));
 			if (user != null)
 			{
-				EliteConsole.PrintFormattedHighlightLine("Created user: \"" + commands[1] + "\"");
 				if (commands.Length == 4)
 				{
 					string[] roleNames = commands[3].Split(",");
 					foreach (string roleName in roleNames)
 					{
 						IdentityRole role = this.CovenantClient.ApiRolesGet().FirstOrDefault(R => R.Name == roleName);
-						if (role != null)
-						{
-							IdentityUserRoleString roleResult = this.CovenantClient.ApiUsersByUidRolesByRidPost(user.Id, role.Id);
-							if (roleResult.UserId == user.Id && roleResult.RoleId == role.Id)
-							{
-								EliteConsole.PrintFormattedHighlightLine("Added user: \"" + commands[1] + "\"" + " to role: \"" + roleName + "\"");
-							}
-							else
-							{
-								EliteConsole.PrintFormattedErrorLine("Failed to add user: \"" + commands[1] + "\" to role: \"" + roleName + "\"");
-							}
-						}
 					}
 				}
 			}
