@@ -5,6 +5,7 @@
 using System;
 using System.Linq;
 using System.Collections.Generic;
+using Microsoft.Rest;
 
 using Covenant.API;
 using Covenant.API.Models;
@@ -93,14 +94,21 @@ namespace Elite.Menu.Indicators
         {
             this.Name = "Ticket";
             this.Description = "Display full Base64EncodedTicket";
-            this.Parameters = new List<MenuCommandParameter> {
-                new MenuCommandParameter {
-                    Name = "ID",
-                    Values = CovenantClient.ApiCredentialsTicketsGet()
-                                .Select(T => new MenuCommandParameterValue { Value = T.Id.ToString() })
-                                .ToList()
-                }
-            };
+            try
+            {
+                this.Parameters = new List<MenuCommandParameter> {
+                    new MenuCommandParameter {
+                        Name = "ID",
+                        Values = CovenantClient.ApiCredentialsTicketsGet()
+                                    .Select(T => new MenuCommandParameterValue { Value = T.Id.ToString() })
+                                    .ToList()
+                    }
+                };
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
 
         public override void Command(MenuItem menuItem, string UserInput)
@@ -135,7 +143,7 @@ namespace Elite.Menu.Indicators
         public List<CapturedHashCredential> HashCredentials { get; set; }
         public List<CapturedTicketCredential> TicketCredentials { get; set; }
 
-        public CredentialsMenuItem(CovenantAPI CovenantClient, EventPrinter EventPrinter) : base(CovenantClient, EventPrinter)
+        public CredentialsMenuItem(CovenantAPI CovenantClient) : base(CovenantClient)
         {
             this.MenuTitle = "Credentials";
             this.MenuDescription = "Displays list of credentials.";
@@ -158,10 +166,17 @@ namespace Elite.Menu.Indicators
 
         public override void Refresh()
         {
-            this.AllCredentials = this.CovenantClient.ApiCredentialsGet().ToList();
-            this.PasswordCredentials = this.CovenantClient.ApiCredentialsPasswordsGet().ToList();
-            this.HashCredentials = this.CovenantClient.ApiCredentialsHashesGet().ToList();
-            this.TicketCredentials = this.CovenantClient.ApiCredentialsTicketsGet().ToList();
+            try
+            {
+                this.AllCredentials = this.CovenantClient.ApiCredentialsGet().ToList();
+                this.PasswordCredentials = this.CovenantClient.ApiCredentialsPasswordsGet().ToList();
+                this.HashCredentials = this.CovenantClient.ApiCredentialsHashesGet().ToList();
+                this.TicketCredentials = this.CovenantClient.ApiCredentialsTicketsGet().ToList();
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
             this.SetupMenuAutoComplete();
         }
     }

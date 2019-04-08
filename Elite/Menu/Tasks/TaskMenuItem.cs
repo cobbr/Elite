@@ -23,20 +23,53 @@ namespace Elite.Menu.Tasks
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
-            TaskMenuItem taskMenuItem = (TaskMenuItem)menuItem;
-            // Refresh the task object
-            taskMenuItem.task = this.CovenantClient.ApiGruntTasksByIdGet(taskMenuItem.task.Id ?? default);
-            GruntTask task = taskMenuItem.task;
-
-            EliteConsoleMenu menu = new EliteConsoleMenu(EliteConsoleMenu.EliteConsoleMenuType.Parameter, "Task: " + task.Name);
-            menu.Rows.Add(new List<string> { "Name:", task.Name });
-            menu.Rows.Add(new List<string> { "Description:", task.Description });
-            menu.Rows.Add(new List<string> { "ReferenceAssemblies:", task.ReferenceAssemblies });
-            task.Options.ToList().ForEach(O =>
+            try
             {
-                menu.Rows.Add(new List<string> { O.Name + ":", O.Value });
-            });
-            menu.Print();
+                TaskMenuItem taskMenuItem = (TaskMenuItem)menuItem;
+                // Refresh the task object
+                taskMenuItem.Task = this.CovenantClient.ApiGrunttasksByIdGet(taskMenuItem.Task.Id ?? default);
+                GruntTask task = taskMenuItem.Task;
+
+                EliteConsoleMenu menu = new EliteConsoleMenu(EliteConsoleMenu.EliteConsoleMenuType.Parameter, "Task: " + task.Name)
+                {
+                    ShouldShortenFields = false
+                };
+                menu.Rows.Add(new List<string> { "Name:", task.Name });
+                menu.Rows.Add(new List<string> { "Description:", task.Description });
+                if (task.ReferenceAssemblies.Any())
+                {
+                    menu.Rows.Add(new List<string> { "ReferenceAssemblies:", String.Join(",", task.ReferenceAssemblies) });
+                }
+                if (task.ReferenceSourceLibraries.Any())
+                {
+                    menu.Rows.Add(new List<string> { "ReferenceSourceLibraries:", String.Join(",", task.ReferenceSourceLibraries) });
+                }
+                if (task.EmbeddedResources.Any())
+                {
+                    menu.Rows.Add(new List<string> { "EmbeddedResources:", String.Join(",", task.EmbeddedResources) });
+                }
+                // string usage = "Usage: " + task.Name;
+                // foreach (GruntTaskOption o in task.Options)
+                // {
+                //     usage += " <" + o.Name.ToLower() + ">";
+                // }
+                // menu.Rows.Add(new List<string> { "Usage:", usage });
+                if (task.Options.Any())
+                {
+                    foreach (GruntTaskOption o in task.Options)
+                    {
+                        menu.Rows.Add(new List<string> { "Parameter:" });
+                        menu.Rows.Add(new List<string> { "  Name:", o.Name });
+                        menu.Rows.Add(new List<string> { "  Description:", o.Description });
+                        menu.Rows.Add(new List<string> { "  Value:", o.Value });
+                    }
+                }
+                menu.Print();
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
     }
 
@@ -54,21 +87,28 @@ namespace Elite.Menu.Tasks
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
-            TaskMenuItem taskMenuItem = ((TaskMenuItem)menuItem);
-            List<string> commands = UserInput.Split(" ").ToList();
-            GruntTaskOption option = taskMenuItem.task.Options.FirstOrDefault(O => O.Name.ToLower() == commands[1].ToLower());
-            if (commands.Count() < 3 || commands.First().ToLower() != "set")
+            try
             {
-                menuItem.PrintInvalidOptionError(UserInput);
+                TaskMenuItem taskMenuItem = ((TaskMenuItem)menuItem);
+                List<string> commands = UserInput.Split(" ").ToList();
+                GruntTaskOption option = taskMenuItem.Task.Options.FirstOrDefault(O => O.Name.ToLower() == commands[1].ToLower());
+                if (commands.Count() < 3 || commands.First().ToLower() != "set")
+                {
+                    menuItem.PrintInvalidOptionError(UserInput);
+                }
+                else if (option == null)
+                {
+                    EliteConsole.PrintFormattedErrorLine("Invalid Set option: \"" + commands[1] + "\"");
+                }
+                else
+                {
+                    option.Value = String.Join(" ", commands.GetRange(2, commands.Count() - 2));
+                    this.CovenantClient.ApiGrunttasksPut(taskMenuItem.Task);
+                }
             }
-            else if (option == null)
+            catch (HttpOperationException e)
             {
-                EliteConsole.PrintFormattedErrorLine("Invalid Set option: \"" + commands[1] + "\"");
-            }
-            else
-            {
-                option.Value = String.Join(" ", commands.GetRange(2, commands.Count() - 2));
-                this.CovenantClient.ApiGruntTasksByIdPut(taskMenuItem.task.Id ?? default, taskMenuItem.task);
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
             }
         }
     }
@@ -84,54 +124,63 @@ namespace Elite.Menu.Tasks
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
-            GruntTask task = ((TaskMenuItem)menuItem).task = this.CovenantClient.ApiGruntTasksByIdGet(((TaskMenuItem)menuItem).task.Id ?? default);
-            Grunt grunt = ((TaskMenuItem)menuItem).grunt;
-            GruntTasking gruntTasking = new GruntTasking { TaskId = task.Id, GruntId = grunt.Id };
-            gruntTasking.TaskingCommand = task.Name + " " + String.Join(' ', task.Options.Select(O => "/" + O.Name.ToLower() + " " + O.Value).ToList());
+            Grunt grunt = ((TaskMenuItem)menuItem).Grunt;
             try
             {
-                GruntTasking postedGruntTasking = this.CovenantClient.ApiGruntsByIdTaskingsPost(grunt.Id ?? default, gruntTasking);
-
-                if (postedGruntTasking != null)
+                GruntTask task = ((TaskMenuItem)menuItem).Task = this.CovenantClient.ApiGrunttasksByIdGet(((TaskMenuItem)menuItem).Task.Id ?? default);
+                GruntTasking gruntTasking = new GruntTasking
                 {
-                    EliteConsole.PrintFormattedHighlightLine("Started Task: " + task.Name + " on Grunt: " + grunt.Name + " as GruntTask: " + postedGruntTasking.Name);
-                }
+                    TaskId = task.Id,
+                    GruntId = grunt.Id,
+                    Type = GruntTaskingType.Assembly,
+                    Status = GruntTaskingStatus.Uninitialized,
+                    TokenTask = task.TokenTask,
+                    TaskingCommand = UserInput.ToLower() == "Start" ? (task.Name + " " + String.Join(' ', task.Options.Select(O => "/" + O.Name.ToLower() + " " + O.Value).ToList())) : UserInput
+                };
+                GruntTasking postedGruntTasking = this.CovenantClient.ApiGruntsByIdTaskingsPost(grunt.Id ?? default, gruntTasking);
             }
             catch (HttpOperationException)
             {
-                EliteConsole.PrintFormattedErrorLine("Failed starting task: " + task.Name + " on Grunt: " + grunt.Name);
+                EliteConsole.PrintFormattedErrorLine("Failed starting task on Grunt: " + grunt.Name);
             }
         }
     }
 
     public class TaskMenuItem : MenuItem
     {
-        public GruntTask task { get; set; }
-        public Grunt grunt { get; set; }
-		public TaskMenuItem(CovenantAPI CovenantClient, EventPrinter EventPrinter, Grunt grunt) : base(CovenantClient, EventPrinter)
+        public GruntTask Task { get; set; }
+        public Grunt Grunt { get; set; }
+		public TaskMenuItem(CovenantAPI CovenantClient, Grunt grunt) : base(CovenantClient)
         {
-            this.grunt = grunt;
-            this.MenuTitle = "Task";
-            this.MenuDescription = "Task a Grunt to do something.";
-            this.MenuItemParameters = new List<MenuCommandParameter> {
+            try
+            {
+                this.Grunt = grunt;
+                this.MenuTitle = "Task";
+                this.MenuDescription = "Task a Grunt to do something.";
+                this.MenuItemParameters = new List<MenuCommandParameter> {
                 new MenuCommandParameter {
-                    Name = "Task Name",
-                    Values = CovenantClient.ApiGruntTasksGet().Select(T => new MenuCommandParameterValue { Value = T.Name }).ToList()
-                }
-            };
+                        Name = "Task Name",
+                        Values = CovenantClient.ApiGrunttasksGet().Select(T => new MenuCommandParameterValue { Value = T.Name }).ToList()
+                    }
+                };
 
-            this.AdditionalOptions.Add(new MenuCommandTaskShow(CovenantClient));
-            this.AdditionalOptions.Add(new MenuCommandTaskStart(CovenantClient));
-            var setCommand = new MenuCommandTaskSet(CovenantClient);
-            this.AdditionalOptions.Add(setCommand);
-            this.AdditionalOptions.Add(new MenuCommandGenericUnset(setCommand.Parameters.FirstOrDefault(P => P.Name == "Option").Values));
+                this.AdditionalOptions.Add(new MenuCommandTaskShow(CovenantClient));
+                this.AdditionalOptions.Add(new MenuCommandTaskStart(CovenantClient));
+                var setCommand = new MenuCommandTaskSet(CovenantClient);
+                this.AdditionalOptions.Add(setCommand);
+                this.AdditionalOptions.Add(new MenuCommandGenericUnset(setCommand.Parameters.FirstOrDefault(P => P.Name == "Option").Values));
 
-            this.SetupMenuAutoComplete();
+                this.SetupMenuAutoComplete();
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
 
 		public override void Refresh()
 		{
-            MenuCommand setCommand = GetTaskMenuSetCommand(task, CovenantClient);
+            MenuCommand setCommand = GetTaskMenuSetCommand(Task, CovenantClient);
             AdditionalOptions[AdditionalOptions.IndexOf(
                 this.AdditionalOptions.FirstOrDefault(MC => MC.Name == "Set")
             )] = setCommand;
@@ -144,27 +193,33 @@ namespace Elite.Menu.Tasks
 
 		public override bool ValidateMenuParameters(string[] parameters, bool forwardEntrance = true)
         {
-            if (forwardEntrance)
+            try
             {
-                if (parameters.Length != 1)
+                if (forwardEntrance)
                 {
-                    EliteConsole.PrintFormattedErrorLine("Must specify a Task Name.");
-                    EliteConsole.PrintFormattedErrorLine("Usage: Task <task_name>");
-                    return false;
-                }
+                    if (parameters.Length != 1)
+                    {
+                        EliteConsole.PrintFormattedErrorLine("Must specify a Task Name.");
+                        EliteConsole.PrintFormattedErrorLine("Usage: Task <task_name>");
+                        return false;
+                    }
+                    GruntTask gruntTask = this.CovenantClient.ApiGrunttasksByTasknameGet(parameters[0]);
+                    if (gruntTask == null)
+                    {
+                        EliteConsole.PrintFormattedErrorLine("Specified invalid Task Name: " + parameters[0]);
+                        EliteConsole.PrintFormattedErrorLine("Usage: Task <task_name>");
+                        return false;
+                    }
+                    this.Task = gruntTask;
+                    this.MenuTitle = this.Task.Name;
 
-                GruntTask gruntTask = CovenantClient.ApiGruntTasksByTasknameGet(parameters[0]);
-                if (gruntTask == null)
-                {
-                    EliteConsole.PrintFormattedErrorLine("Specified invalid Task Name: " + parameters[0]);
-                    EliteConsole.PrintFormattedErrorLine("Usage: Task <task_name>");
-                    return false;
                 }
-                this.task = gruntTask;
-                this.MenuTitle = this.task.Name;
-
+                this.Refresh();
             }
-            this.Refresh();
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
             return true;
         }
 

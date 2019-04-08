@@ -7,6 +7,8 @@ using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 
+using Microsoft.Rest;
+
 using Covenant.API;
 using Covenant.API.Models;
 
@@ -23,18 +25,25 @@ namespace Elite.Menu.Listeners
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
-            Listener listener = ((HostedFilesMenuItem)menuItem).Listener;
-            List<HostedFile> hostedFiles = this.CovenantClient.ApiListenersByIdHostedfilesGet(listener.Id ?? default).ToList();
-
-            EliteConsoleMenu menu = new EliteConsoleMenu(EliteConsoleMenu.EliteConsoleMenuType.List, "HostedFiles");
-            menu.Columns.Add("Listener");
-            // menu.Columns.Add("HostUri");
-            menu.Columns.Add("Path");
-            hostedFiles.ForEach(HF =>
+            try
             {
-                menu.Rows.Add(new List<string> { listener.Name, HF.Path });
-            });
-            menu.Print();
+                Listener listener = ((HostedFilesMenuItem)menuItem).Listener;
+                List<HostedFile> hostedFiles = this.CovenantClient.ApiListenersByIdHostedfilesGet(listener.Id ?? default).ToList();
+
+                EliteConsoleMenu menu = new EliteConsoleMenu(EliteConsoleMenu.EliteConsoleMenuType.List, "HostedFiles");
+                menu.Columns.Add("Listener");
+                // menu.Columns.Add("HostUri");
+                menu.Columns.Add("Path");
+                hostedFiles.ForEach(HF =>
+                {
+                    menu.Rows.Add(new List<string> { listener.Name, HF.Path });
+                });
+                menu.Print();
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
     }
 
@@ -56,29 +65,36 @@ namespace Elite.Menu.Listeners
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
-            Listener listener = ((HostedFilesMenuItem)menuItem).Listener;
+            try
+            {
+                Listener listener = ((HostedFilesMenuItem)menuItem).Listener;
 
-            string[] commands = UserInput.Split(" ");
-            if (commands.Length != 3 || commands[0].ToLower() != "host")
-            {
-                menuItem.PrintInvalidOptionError(UserInput);
-            }
-            else
-            {
-                FileInfo file = new FileInfo(commands[1]);
-                if (!file.Exists)
+                string[] commands = UserInput.Split(" ");
+                if (commands.Length != 3 || commands[0].ToLower() != "host")
                 {
                     menuItem.PrintInvalidOptionError(UserInput);
-                    EliteConsole.PrintFormattedErrorLine("File: \"" + commands[1] + "\" does not exist on the local system.");
-                    return;
                 }
-                HostedFile hostedFile = new HostedFile
+                else
                 {
-                    ListenerId = listener.Id,
-                    Path = commands[2],
-                    Content = Convert.ToBase64String(File.ReadAllBytes(commands[1]))
-                };
-                this.CovenantClient.ApiListenersByIdHostedfilesPost(listener.Id ?? default, hostedFile);
+                    FileInfo file = new FileInfo(commands[1]);
+                    if (!file.Exists)
+                    {
+                        menuItem.PrintInvalidOptionError(UserInput);
+                        EliteConsole.PrintFormattedErrorLine("File: \"" + commands[1] + "\" does not exist on the local system.");
+                        return;
+                    }
+                    HostedFile hostedFile = new HostedFile
+                    {
+                        ListenerId = listener.Id,
+                        Path = commands[2],
+                        Content = Convert.ToBase64String(File.ReadAllBytes(commands[1]))
+                    };
+                    this.CovenantClient.ApiListenersByIdHostedfilesPost(listener.Id ?? default, hostedFile);
+                }
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
             }
         }
     }
@@ -89,36 +105,50 @@ namespace Elite.Menu.Listeners
         {
             this.Name = "Remove";
             this.Description = "Remove a file being hosted.";
-            this.Parameters = new List<MenuCommandParameter> {
-                new MenuCommandParameter {
-                    Name = "HostPath",
-                    Values = this.CovenantClient.ApiListenersGet()
-                                 .Select(L => this.CovenantClient.ApiListenersByIdHostedfilesGet(L.Id ?? default(int))
-                                                  .Select(HF => new MenuCommandParameterValue { Value = HF.Path })
-                                        ).FirstOrDefault().ToList()
-                }
-            };
+            try
+            {
+                this.Parameters = new List<MenuCommandParameter> {
+                    new MenuCommandParameter {
+                        Name = "HostPath",
+                        Values = this.CovenantClient.ApiListenersGet()
+                                     .Select(L => this.CovenantClient.ApiListenersByIdHostedfilesGet(L.Id ?? default(int))
+                                                      .Select(HF => new MenuCommandParameterValue { Value = HF.Path })
+                                            ).FirstOrDefault().ToList()
+                    }
+                };
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
-            Listener listener = ((HostedFilesMenuItem)menuItem).Listener;
+            try
+            {
+                Listener listener = ((HostedFilesMenuItem)menuItem).Listener;
 
-            string[] commands = UserInput.Split(" ");
-            if (commands.Length != 2 || commands[0].ToLower() != "remove")
-            {
-                menuItem.PrintInvalidOptionError(UserInput);
-            }
-            else
-            {
-                HostedFile hostedFile = this.CovenantClient.ApiListenersByIdHostedfilesGet(listener.Id ?? default).FirstOrDefault(HF => HF.Path == commands[1]);
-                if (hostedFile == null)
+                string[] commands = UserInput.Split(" ");
+                if (commands.Length != 2 || commands[0].ToLower() != "remove")
                 {
                     menuItem.PrintInvalidOptionError(UserInput);
-                    EliteConsole.PrintFormattedErrorLine("No file is currently being hosted at: \"" + commands[1] + "\".");
-                    return;
                 }
-                this.CovenantClient.ApiListenersByIdHostedfilesByHfidDelete(listener.Id ?? default, hostedFile.Id ?? default);
+                else
+                {
+                    HostedFile hostedFile = this.CovenantClient.ApiListenersByIdHostedfilesGet(listener.Id ?? default).FirstOrDefault(HF => HF.Path == commands[1]);
+                    if (hostedFile == null)
+                    {
+                        menuItem.PrintInvalidOptionError(UserInput);
+                        EliteConsole.PrintFormattedErrorLine("No file is currently being hosted at: \"" + commands[1] + "\".");
+                        return;
+                    }
+                    this.CovenantClient.ApiListenersByIdHostedfilesByHfidDelete(listener.Id ?? default, hostedFile.Id ?? default);
+                }
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
             }
         }
     }
@@ -127,7 +157,7 @@ namespace Elite.Menu.Listeners
     {
         public Listener Listener { get; set; }
 
-        public HostedFilesMenuItem(CovenantAPI CovenantClient, EventPrinter EventPrinter, Listener Listener) : base(CovenantClient, EventPrinter)
+        public HostedFilesMenuItem(CovenantAPI CovenantClient, Listener Listener) : base(CovenantClient)
         {
             this.Listener = Listener;
             this.MenuTitle = "HostedFiles";

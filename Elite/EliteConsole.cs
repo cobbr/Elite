@@ -22,10 +22,11 @@ namespace Elite
         public List<string> Columns { get; set; } = new List<string>();
         public List<List<string>> Rows { get; set; } = new List<List<string>>();
         public bool PrintEndBuffer { get; set; } = true;
+        public bool ShouldShortenFields { get; set; } = true;
 
-        private static string Spacer = "     ";
-        private static int MaxFieldLength = 80;
-        private static string Elipsis = "...";
+        private static string Spacer { get; } = "     ";
+        private static int MaxFieldLength { get; } = 80;
+        private static string Elipsis { get; } = "...";
 
         public EliteConsoleMenu(EliteConsoleMenuType MenuType = EliteConsoleMenuType.Menu, string Title = "")
         {
@@ -175,6 +176,7 @@ namespace Elite
         private string Short(string toShorten = "")
         {
             if (toShorten == null) { toShorten = ""; }
+            if (!this.ShouldShortenFields) { return toShorten; }
             if (toShorten.Length > MaxFieldLength)
             {
                 return toShorten.Substring(0, MaxFieldLength) + Elipsis;
@@ -194,7 +196,7 @@ namespace Elite
         private static string HighlightLabel = "[*]";
         private static string WarningLabel = "[-]";
         private static string ErrorLabel = "[!]";
-        private static object _ConsoleLock = new object();
+        private static readonly object _ConsoleLock = new object();
 
         private static void PrintColor(string ToPrint = "", ConsoleColor color = ConsoleColor.DarkGray)
         {

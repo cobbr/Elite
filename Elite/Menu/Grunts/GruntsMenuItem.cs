@@ -5,6 +5,8 @@
 using System.Linq;
 using System.Collections.Generic;
 
+using Microsoft.Rest;
+
 using Covenant.API;
 using Covenant.API.Models;
 
@@ -79,7 +81,14 @@ namespace Elite.Menu.Grunts
             else
             {
                 grunt.Name = commands[2];
-                this.CovenantClient.ApiGruntsPut(grunt);
+                try
+                {
+                    this.CovenantClient.ApiGruntsPut(grunt);
+                }
+                catch (HttpOperationException e)
+                {
+                    EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+                }
             }
         }
     }
@@ -90,13 +99,20 @@ namespace Elite.Menu.Grunts
         {
             this.Name = "Kill";
             this.Description = "Kill an active Grunt.";
-            this.Parameters = new List<MenuCommandParameter> {
-                new MenuCommandParameter {
-                    Name = "Grunt Name",
-                    Values = CovenantClient.ApiGruntsGet().Where(G => G.Status != GruntStatus.Uninitialized)
-                                           .Select(G => new MenuCommandParameterValue { Value = G.Name }).ToList()
-                }
-            };
+            try
+            {
+                this.Parameters = new List<MenuCommandParameter> {
+                    new MenuCommandParameter {
+                        Name = "Grunt Name",
+                        Values = CovenantClient.ApiGruntsGet().Where(G => G.Status != GruntStatus.Uninitialized)
+                                               .Select(G => new MenuCommandParameterValue { Value = G.Name }).ToList()
+                    }
+                };
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
 
         public override void Command(MenuItem menuItem, string UserInput)
@@ -120,7 +136,14 @@ namespace Elite.Menu.Grunts
                 foreach (Grunt g in gruntsMenuItem.Grunts)
                 {
                     GruntTasking gt = new GruntTasking { Type = GruntTaskingType.Kill, GruntId = g.Id };
-                    this.CovenantClient.ApiGruntsByIdTaskingsPost(g.Id ?? default, gt);
+                    try
+                    {
+                        this.CovenantClient.ApiGruntsByIdTaskingsPost(g.Id ?? default, gt);
+                    }
+                    catch (HttpOperationException e)
+                    {
+                        EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+                    }
                 }
             }
             Grunt grunt = gruntsMenuItem.Grunts.FirstOrDefault(G => G.Name == commands[1]);
@@ -137,7 +160,14 @@ namespace Elite.Menu.Grunts
                 return;
             }
             GruntTasking gruntTasking = new GruntTasking { Type = GruntTaskingType.Kill, GruntId = grunt.Id };
-            this.CovenantClient.ApiGruntsByIdTaskingsPost(grunt.Id ?? default, gruntTasking);
+            try
+            {
+                this.CovenantClient.ApiGruntsByIdTaskingsPost(grunt.Id ?? default, gruntTasking);
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
     }
 
@@ -147,13 +177,20 @@ namespace Elite.Menu.Grunts
         {
             this.Name = "Hide";
             this.Description = "Hide an inactive Grunt.";
-            this.Parameters = new List<MenuCommandParameter> {
-                new MenuCommandParameter {
-                    Name = "Grunt Name",
-                    Values = CovenantClient.ApiGruntsGet().Where(G => G.Status != GruntStatus.Uninitialized)
-                                           .Select(G => new MenuCommandParameterValue { Value = G.Name }).ToList()
-                }
-            };
+            try
+            {
+                this.Parameters = new List<MenuCommandParameter> {
+                    new MenuCommandParameter {
+                        Name = "Grunt Name",
+                        Values = CovenantClient.ApiGruntsGet().Where(G => G.Status != GruntStatus.Uninitialized)
+                                               .Select(G => new MenuCommandParameterValue { Value = G.Name }).ToList()
+                    }
+                };
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
 
         public override void Command(MenuItem menuItem, string UserInput)
@@ -226,11 +263,11 @@ namespace Elite.Menu.Grunts
         public List<Grunt> Grunts { get; set; }
         public List<string> HiddenGruntNames { get; set; } = new List<string>();
 
-		public GruntsMenuItem(CovenantAPI CovenantClient, EventPrinter EventPrinter) : base(CovenantClient, EventPrinter)
+		public GruntsMenuItem(CovenantAPI CovenantClient) : base(CovenantClient)
         {
             this.MenuTitle = "Grunts";
             this.MenuDescription = "Displays list of connected grunts.";
-			this.MenuOptions.Add(new GruntInteractMenuItem(this.CovenantClient, this.EventPrinter));
+			this.MenuOptions.Add(new GruntInteractMenuItem(this.CovenantClient));
             this.AdditionalOptions.Add(new MenuCommandGruntsShow());
             this.AdditionalOptions.Add(new MenuCommandGruntsRename(CovenantClient));
             this.AdditionalOptions.Add(new MenuCommandGruntsKill(CovenantClient));
@@ -242,7 +279,14 @@ namespace Elite.Menu.Grunts
 
 		public override void Refresh()
 		{
-            this.Grunts = CovenantClient.ApiGruntsGet().ToList();
+            try
+            {
+                this.Grunts = CovenantClient.ApiGruntsGet().ToList();
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
             List<MenuCommandParameterValue> gruntNames = Grunts.Where(G => G.Status != GruntStatus.Uninitialized)
                                                                .Select(G => new MenuCommandParameterValue { Value = G.Name }).ToList();
             List<MenuCommandParameterValue> killableGruntNames = Grunts.Where(G => G.Status != GruntStatus.Uninitialized && G.Status != GruntStatus.Killed)

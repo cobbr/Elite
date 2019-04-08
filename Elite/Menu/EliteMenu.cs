@@ -15,13 +15,12 @@ namespace Elite.Menu
     public class EliteMenu
     {
         private List<MenuItem> MenuStack { get; set; } = new List<MenuItem>();
-		public EventPrinter EventPrinter { get; set; } = new EventPrinter();
         private CovenantAPI CovenantClient { get; set; }
         
         public EliteMenu(CovenantAPI CovenantClient)
         {
             this.CovenantClient = CovenantClient;
-			this.MenuStack.Add(new CovenantBaseMenuItem(this.CovenantClient, this.EventPrinter));
+			this.MenuStack.Add(new CovenantBaseMenuItem(this.CovenantClient));
         }
 
         public string GetMenuLevelTitleStack()
@@ -132,51 +131,4 @@ namespace Elite.Menu
             return true;
         }
     }
-
-    public class EventPrinter
-	{
-		private static object _EventLock = new object();
-
-		public void PrintEvent(EventModel theEvent, string Context = "*")
-		{
-			lock (_EventLock)
-			{
-				if (this.WillPrintEvent(theEvent, Context))
-				{
-					switch (theEvent.Level)
-					{
-						case EventLevel.Highlight:
-							EliteConsole.PrintFormattedHighlightLine(theEvent.MessageHeader);
-							break;
-						case EventLevel.Info:
-                            EliteConsole.PrintFormattedInfoLine(theEvent.MessageHeader);
-							break;
-						case EventLevel.Warning:
-							EliteConsole.PrintFormattedWarningLine(theEvent.MessageHeader);
-							break;
-						case EventLevel.Error:
-							EliteConsole.PrintFormattedErrorLine(theEvent.MessageHeader);
-							break;
-						default:
-							EliteConsole.PrintFormattedInfoLine(theEvent.MessageHeader);
-							break;
-					}
-                    if (!string.IsNullOrWhiteSpace(theEvent.MessageBody))
-                    {
-                        EliteConsole.PrintInfoLine(theEvent.MessageBody);
-                    }
-				}
-			}
-		}
-
-        public bool WillPrintEvent(EventModel theEvent, string Context = "*")
-		{
-            return this.ContextMatches(theEvent, Context);
-		}
-
-        public bool ContextMatches(EventModel theEvent, string Context = "*")
-		{
-			return theEvent.Context == "*" || Context.ToLower().Contains(theEvent.Context.ToLower());
-		}
-	}
 }

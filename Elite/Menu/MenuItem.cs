@@ -153,12 +153,10 @@ namespace Elite.Menu
         public string MenuDescription { get; set; }
 
 		public readonly CovenantAPI CovenantClient;
-		protected readonly EventPrinter EventPrinter;
 
-		public MenuItem(CovenantAPI CovenantClient, EventPrinter EventPrinter)
+		public MenuItem(CovenantAPI CovenantClient)
         {
             this.CovenantClient = CovenantClient;
-			this.EventPrinter = EventPrinter;
             this.MenuOptions = new List<MenuItem>();
             this.AdditionalOptions = new List<MenuCommand> {
                 new MenuCommandHelp(),

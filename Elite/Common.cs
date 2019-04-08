@@ -74,5 +74,29 @@ namespace Elite
                 .Select(m => m.Value.Trim('"'))
                 .ToList();
         }
+
+        public static string GetPassword()
+        {
+            string password = "";
+            ConsoleKeyInfo nextKey = Console.ReadKey(true);
+            while (nextKey.Key != ConsoleKey.Enter)
+            {
+                if (nextKey.Key == ConsoleKey.Backspace)
+                {
+                    if (password.Length > 0)
+                    {
+                        password = password.Substring(0, password.Length - 1);
+                        Console.Write("\b \b");
+                    }
+                }
+                else
+                {
+                    password += nextKey.KeyChar;
+                    Console.Write("*");
+                }
+                nextKey = Console.ReadKey(true);
+            }
+            return password;
+        }
     }
 }

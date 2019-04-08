@@ -6,6 +6,8 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 
+using Microsoft.Rest;
+
 using Covenant.API;
 using Covenant.API.Models;
 
@@ -62,41 +64,55 @@ namespace Elite.Menu.Listeners
         {
             this.Name = "Rename";
             this.Description = "Rename a listener";
-            this.Parameters = new List<MenuCommandParameter> {
-                new MenuCommandParameter {
-                    Name = "Old Name",
-                    Values = this.CovenantClient.ApiListenersGet().Select(L => new MenuCommandParameterValue { Value = L.Name }).ToList()
-                },
-                new MenuCommandParameter { Name = "New Name" }
-            };
+            try
+            {
+                this.Parameters = new List<MenuCommandParameter> {
+                    new MenuCommandParameter {
+                        Name = "Old Name",
+                        Values = this.CovenantClient.ApiListenersGet().Select(L => new MenuCommandParameterValue { Value = L.Name }).ToList()
+                    },
+                    new MenuCommandParameter { Name = "New Name" }
+                };
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
-            menuItem.Refresh();
-            ListenersMenuItem listenersMenu = ((ListenersMenuItem)menuItem);
-            string[] commands = UserInput.Split(" ");
-            if (commands.Length != 3 || commands[0].ToLower() != "rename")
+            try
             {
-                menuItem.PrintInvalidOptionError(UserInput);
-                return;
-            }
+                menuItem.Refresh();
+                ListenersMenuItem listenersMenu = ((ListenersMenuItem)menuItem);
+                string[] commands = UserInput.Split(" ");
+                if (commands.Length != 3 || commands[0].ToLower() != "rename")
+                {
+                    menuItem.PrintInvalidOptionError(UserInput);
+                    return;
+                }
 
-            Listener listener = listenersMenu.Listeners.FirstOrDefault(L => L.Name.ToLower() == commands[1]);
-            if (listener == null)
-            {
-                EliteConsole.PrintFormattedErrorLine("Listener with name: " + commands[1] + " does not exist.");
-                menuItem.PrintInvalidOptionError(UserInput);
+                Listener listener = listenersMenu.Listeners.FirstOrDefault(L => L.Name.ToLower() == commands[1]);
+                if (listener == null)
+                {
+                    EliteConsole.PrintFormattedErrorLine("Listener with name: " + commands[1] + " does not exist.");
+                    menuItem.PrintInvalidOptionError(UserInput);
+                }
+                else if (listenersMenu.Listeners.Where(L => L.Name.ToLower() == commands[2].ToLower()).Any())
+                {
+                    EliteConsole.PrintFormattedErrorLine("Listener with name: " + commands[2] + " already exists.");
+                    menuItem.PrintInvalidOptionError(UserInput);
+                }
+                else
+                {
+                    listener.Name = commands[2];
+                    this.CovenantClient.ApiListenersPut(listener);
+                }
             }
-            else if (listenersMenu.Listeners.Where(L => L.Name.ToLower() == commands[2].ToLower()).Any())
+            catch (HttpOperationException e)
             {
-                EliteConsole.PrintFormattedErrorLine("Listener with name: " + commands[2] + " already exists.");
-                menuItem.PrintInvalidOptionError(UserInput);
-            }
-            else
-            {
-                listener.Name = commands[2];
-                this.CovenantClient.ApiListenersPut(listener);
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
             }
         }
     }
@@ -106,13 +122,13 @@ namespace Elite.Menu.Listeners
         public List<ListenerType> ListenerTypes { get; set; }
         public List<Listener> Listeners { get; set; }
 
-		public ListenersMenuItem(CovenantAPI CovenantClient, EventPrinter EventPrinter) : base(CovenantClient, EventPrinter)
+		public ListenersMenuItem(CovenantAPI CovenantClient) : base(CovenantClient)
         {
             this.MenuTitle = "Listeners";
             this.MenuDescription = "Displays list of listeners.";
             
-			this.MenuOptions.Add(new HTTPListenerMenuItem(this.CovenantClient, this.EventPrinter));
-			this.MenuOptions.Add(new ListenerInteractMenuItem(this.CovenantClient, this.EventPrinter));
+			this.MenuOptions.Add(new HTTPListenerMenuItem(this.CovenantClient));
+			this.MenuOptions.Add(new ListenerInteractMenuItem(this.CovenantClient));
 
             this.AdditionalOptions.Add(new MenuCommandListenersShow());
             this.AdditionalOptions.Add(new MenuCommandListenersRename(CovenantClient));
@@ -134,16 +150,23 @@ namespace Elite.Menu.Listeners
 
 		public override void Refresh()
 		{
-            ListenerTypes = this.CovenantClient.ApiListenersTypesGet().ToList();
-            Listeners = this.CovenantClient.ApiListenersGet().Where(L => L.Status != ListenerStatus.Uninitialized).ToList();
-            List<MenuCommandParameterValue> listenerNames = this.Listeners.Select(L => new MenuCommandParameterValue { Value = L.Name }).ToList();
+            try
+            {
+                ListenerTypes = this.CovenantClient.ApiListenersTypesGet().ToList();
+                Listeners = this.CovenantClient.ApiListenersGet().Where(L => L.Status != ListenerStatus.Uninitialized).ToList();
+                List<MenuCommandParameterValue> listenerNames = this.Listeners.Select(L => new MenuCommandParameterValue { Value = L.Name }).ToList();
 
-            this.MenuOptions.FirstOrDefault(M => M.MenuTitle == "Interact")
-                .MenuItemParameters.FirstOrDefault(P => P.Name == "Listener Name").Values = listenerNames;
-            this.AdditionalOptions.FirstOrDefault(AO => AO.Name == "Rename")
-                .Parameters.FirstOrDefault(P => P.Name == "Old Name").Values = listenerNames;
-            
-            this.SetupMenuAutoComplete();
-		}
+                this.MenuOptions.FirstOrDefault(M => M.MenuTitle == "Interact")
+                    .MenuItemParameters.FirstOrDefault(P => P.Name == "Listener Name").Values = listenerNames;
+                this.AdditionalOptions.FirstOrDefault(AO => AO.Name == "Rename")
+                    .Parameters.FirstOrDefault(P => P.Name == "Old Name").Values = listenerNames;
+
+                this.SetupMenuAutoComplete();
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
+        }
 	}
 }

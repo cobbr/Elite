@@ -4,16 +4,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [v0.1.4] - 2019-03-22
+## Unreleased
 ### Added
 - Added connection test prior to login
+- Added Elite display events on user tasking (prior to completed)
+- Added better Elite error messages
+- Added forked version of ReadLine, with better tab-complete
+- Added change user password
+- Added shellcmd task
+- Added sharpdpapi task
+- Added sharpup task
+- Added sharpdump task
+- Added sharpwmi task
 
 ### Changed
 - Event printing moved to task
 - Event creation moved to Covenant controllers
+- TaskMenu now displays full task description, detailed parameter info
 
 ### Fixed
 - Fixed bad command causing following commands to fail
+- Fixed Create user error message
 
 ## [v0.1.3] - 2019-03-14
 ### Added

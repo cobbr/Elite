@@ -15,7 +15,6 @@
 
   <ItemGroup>
     <PackageReference Include="McMaster.Extensions.CommandLineUtils" Version="2.1.1" />
-    <PackageReference Include="ReadLine" Version="2.0.0" />
     <PackageReference Include="Microsoft.Rest.ClientRuntime" Version="2.3.11" />
   </ItemGroup>
 
@@ -25,5 +24,10 @@
     <Folder Include="Menu\Users\" />
     <Folder Include="Menu\Indicators\" />
     <Folder Include="Menu\Credentials\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="ReadLine">
+      <HintPath>refs\ReadLine.dll</HintPath>
+    </Reference>
   </ItemGroup>
 </Project>

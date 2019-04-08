@@ -7,6 +7,8 @@ using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 
+using Microsoft.Rest;
+
 using Covenant.API;
 using Covenant.API.Models;
 
@@ -25,36 +27,43 @@ namespace Elite.Menu.Listeners
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
-            ListenerInteractMenuItem listenerInteractMenuItem = (ListenerInteractMenuItem)menuItem;
-            Listener listener = listenerInteractMenuItem.listener;
-            EliteConsoleMenu menu = new EliteConsoleMenu(EliteConsoleMenu.EliteConsoleMenuType.Parameter, listenerInteractMenuItem.listenerType.Name + " Listener: " + listener.Name);
-            switch (listenerInteractMenuItem.listenerType.Name)
+            try
             {
-                case "HTTP":
-                    HttpListener httpListener = this.CovenantClient.ApiListenersHttpByIdGet(listener.Id ?? default);
-                    HttpProfile httpProfile = this.CovenantClient.ApiListenersByIdProfileGet(httpListener.Id ?? default);
-                    menu.Rows.Add(new List<string> { "Name:", httpListener.Name });
-                    menu.Rows.Add(new List<string> { "Status:", httpListener.Status.ToString() });
-                    menu.Rows.Add(new List<string> { "StartTime:", httpListener.StartTime.ToString() });
-                    menu.Rows.Add(new List<string> { "Description:", httpListener.Description });
-                    menu.Rows.Add(new List<string> { "URL:", httpListener.Url });
-                    menu.Rows.Add(new List<string> { "  ConnectAddress:", httpListener.ConnectAddress });
-                    menu.Rows.Add(new List<string> { "  BindAddress:", httpListener.BindAddress });
-                    menu.Rows.Add(new List<string> { "  BindPort:", httpListener.BindPort.ToString() });
-                    menu.Rows.Add(new List<string> { "  UseSSL:", (httpListener.UseSSL ?? default) ? "True" : "False" });
-                    menu.Rows.Add(new List<string> { "SSLCertPath:", listenerInteractMenuItem.SSLCertPath });
-                    menu.Rows.Add(new List<string> { "SSLCertPassword:", httpListener.SslCertificatePassword });
-                    menu.Rows.Add(new List<string> { "SSLCertHash:", httpListener.SslCertHash });
-                    menu.Rows.Add(new List<string> { "HttpProfile:", httpProfile.Name });
-                    break;
+                ListenerInteractMenuItem listenerInteractMenuItem = (ListenerInteractMenuItem)menuItem;
+                Listener listener = listenerInteractMenuItem.listener;
+                EliteConsoleMenu menu = new EliteConsoleMenu(EliteConsoleMenu.EliteConsoleMenuType.Parameter, listenerInteractMenuItem.listenerType.Name + " Listener: " + listener.Name);
+                switch (listenerInteractMenuItem.listenerType.Name)
+                {
+                    case "HTTP":
+                        HttpListener httpListener = this.CovenantClient.ApiListenersHttpByIdGet(listener.Id ?? default);
+                        HttpProfile httpProfile = this.CovenantClient.ApiListenersByIdProfileGet(httpListener.Id ?? default);
+                        menu.Rows.Add(new List<string> { "Name:", httpListener.Name });
+                        menu.Rows.Add(new List<string> { "Status:", httpListener.Status.ToString() });
+                        menu.Rows.Add(new List<string> { "StartTime:", httpListener.StartTime.ToString() });
+                        menu.Rows.Add(new List<string> { "Description:", httpListener.Description });
+                        menu.Rows.Add(new List<string> { "URL:", httpListener.Url });
+                        menu.Rows.Add(new List<string> { "  ConnectAddress:", httpListener.ConnectAddress });
+                        menu.Rows.Add(new List<string> { "  BindAddress:", httpListener.BindAddress });
+                        menu.Rows.Add(new List<string> { "  BindPort:", httpListener.BindPort.ToString() });
+                        menu.Rows.Add(new List<string> { "  UseSSL:", (httpListener.UseSSL ?? default) ? "True" : "False" });
+                        menu.Rows.Add(new List<string> { "SSLCertPath:", listenerInteractMenuItem.SSLCertPath });
+                        menu.Rows.Add(new List<string> { "SSLCertPassword:", httpListener.SslCertificatePassword });
+                        menu.Rows.Add(new List<string> { "SSLCertHash:", httpListener.SslCertHash });
+                        menu.Rows.Add(new List<string> { "HttpProfile:", httpProfile.Name });
+                        break;
+                }
+                menu.Print();
             }
-            menu.Print();
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
     }
 
     public class MenuCommandListenerInteractStart : MenuCommand
     {
-		public MenuCommandListenerInteractStart(CovenantAPI CovenantClient, EventPrinter EventPrinter) : base(CovenantClient, EventPrinter)
+		public MenuCommandListenerInteractStart(CovenantAPI CovenantClient) : base(CovenantClient)
         {
             this.Name = "Start";
             this.Description = "Start the Listener";
@@ -63,31 +72,38 @@ namespace Elite.Menu.Listeners
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
-            ListenerInteractMenuItem listenerInteractMenuItem = (ListenerInteractMenuItem)menuItem;
-            // TODO: error if http lsitener already on this port
-            if (listenerInteractMenuItem.listener.Status == ListenerStatus.Active)
+            try
             {
-                EliteConsole.PrintFormattedErrorLine("Listener: " + listenerInteractMenuItem.listener.Name + " is already active.");
-                menuItem.PrintInvalidOptionError(UserInput);
-            }
-            else
-            {
-                switch(listenerInteractMenuItem.listenerType.Name)
+                ListenerInteractMenuItem listenerInteractMenuItem = (ListenerInteractMenuItem)menuItem;
+                // TODO: error if http lsitener already on this port
+                if (listenerInteractMenuItem.listener.Status == ListenerStatus.Active)
                 {
-                    case "HTTP":
-                        HttpListener httpListener = this.CovenantClient.ApiListenersHttpByIdGet(listenerInteractMenuItem.listener.Id ?? default);
-                        httpListener.Status = ListenerStatus.Active;
-                        this.CovenantClient.ApiListenersHttpPut(httpListener);
-                        break;
+                    EliteConsole.PrintFormattedErrorLine("Listener: " + listenerInteractMenuItem.listener.Name + " is already active.");
+                    menuItem.PrintInvalidOptionError(UserInput);
                 }
-                listenerInteractMenuItem.Refresh();
+                else
+                {
+                    switch (listenerInteractMenuItem.listenerType.Name)
+                    {
+                        case "HTTP":
+                            HttpListener httpListener = this.CovenantClient.ApiListenersHttpByIdGet(listenerInteractMenuItem.listener.Id ?? default);
+                            httpListener.Status = ListenerStatus.Active;
+                            this.CovenantClient.ApiListenersHttpPut(httpListener);
+                            break;
+                    }
+                    listenerInteractMenuItem.Refresh();
+                }
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
             }
         }
     }
 
     public class MenuCommandListenerInteractStop : MenuCommand
     {
-		public MenuCommandListenerInteractStop(CovenantAPI CovenantClient, EventPrinter EventPrinter) : base(CovenantClient, EventPrinter)
+		public MenuCommandListenerInteractStop(CovenantAPI CovenantClient) : base(CovenantClient)
         {
             this.Name = "Stop";
             this.Description = "Stop the Listener";
@@ -96,23 +112,30 @@ namespace Elite.Menu.Listeners
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
-            ListenerInteractMenuItem listenerInteractMenuItem = (ListenerInteractMenuItem)menuItem;
-            if (listenerInteractMenuItem.listener.Status == ListenerStatus.Stopped)
+            try
             {
-                EliteConsole.PrintFormattedErrorLine("Listener: " + listenerInteractMenuItem.listener.Name + " is already stopped.");
-                menuItem.PrintInvalidOptionError(UserInput);
-            }
-            else
-			{
-                switch (listenerInteractMenuItem.listenerType.Name)
+                ListenerInteractMenuItem listenerInteractMenuItem = (ListenerInteractMenuItem)menuItem;
+                if (listenerInteractMenuItem.listener.Status == ListenerStatus.Stopped)
                 {
-                    case "HTTP":
-                        HttpListener httpListener = this.CovenantClient.ApiListenersHttpByIdGet(listenerInteractMenuItem.listener.Id ?? default);
-                        httpListener.Status = ListenerStatus.Stopped;
-                        httpListener = this.CovenantClient.ApiListenersHttpPut(httpListener);
-                        break;
+                    EliteConsole.PrintFormattedErrorLine("Listener: " + listenerInteractMenuItem.listener.Name + " is already stopped.");
+                    menuItem.PrintInvalidOptionError(UserInput);
                 }
-                listenerInteractMenuItem.Refresh();
+                else
+                {
+                    switch (listenerInteractMenuItem.listenerType.Name)
+                    {
+                        case "HTTP":
+                            HttpListener httpListener = this.CovenantClient.ApiListenersHttpByIdGet(listenerInteractMenuItem.listener.Id ?? default);
+                            httpListener.Status = ListenerStatus.Stopped;
+                            httpListener = this.CovenantClient.ApiListenersHttpPut(httpListener);
+                            break;
+                    }
+                    listenerInteractMenuItem.Refresh();
+                }
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
             }
         }
     }
@@ -123,60 +146,81 @@ namespace Elite.Menu.Listeners
         public ListenerType listenerType { get; set; }
         public string SSLCertPath { get; set; }
 
-		public ListenerInteractMenuItem(CovenantAPI CovenantClient, EventPrinter EventPrinter) : base(CovenantClient, EventPrinter)
+		public ListenerInteractMenuItem(CovenantAPI CovenantClient) : base(CovenantClient)
         {
-            this.MenuTitle = "Interact";
-            this.MenuDescription = "Interact with a Listener.";
-            this.MenuItemParameters = new List<MenuCommandParameter> {
-                new MenuCommandParameter {
-                    Name = "Listener Name",
-                    Values = CovenantClient.ApiListenersGet().Select(L => new MenuCommandParameterValue { Value = L.Name}).ToList()
-                }
-            };
+            try
+            {
+                this.MenuTitle = "Interact";
+                this.MenuDescription = "Interact with a Listener.";
+                this.MenuItemParameters = new List<MenuCommandParameter> {
+                    new MenuCommandParameter {
+                        Name = "Listener Name",
+                        Values = CovenantClient.ApiListenersGet().Select(L => new MenuCommandParameterValue { Value = L.Name}).ToList()
+                    }
+                };
 
-			this.MenuOptions.Add(new HostedFilesMenuItem(this.CovenantClient, this.EventPrinter, listener));
+                this.MenuOptions.Add(new HostedFilesMenuItem(this.CovenantClient, listener));
 
-            this.AdditionalOptions.Add(new MenuCommandListenerInteractShow(this.CovenantClient));
-			this.AdditionalOptions.Add(new MenuCommandListenerInteractStart(this.CovenantClient, this.EventPrinter));
-			this.AdditionalOptions.Add(new MenuCommandListenerInteractStop(this.CovenantClient, this.EventPrinter));
+                this.AdditionalOptions.Add(new MenuCommandListenerInteractShow(this.CovenantClient));
+                this.AdditionalOptions.Add(new MenuCommandListenerInteractStart(this.CovenantClient));
+                this.AdditionalOptions.Add(new MenuCommandListenerInteractStop(this.CovenantClient));
 
-            this.SetupMenuAutoComplete();
+                this.SetupMenuAutoComplete();
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
 
 		public override void Refresh()
 		{
-            this.listener = this.CovenantClient.ApiListenersGet().FirstOrDefault(L => L.Name == this.listener.Name);
-            this.listenerType = this.CovenantClient.ApiListenersTypesByIdGet(this.listener.ListenerTypeId ?? default);
+            try
+            {
+                this.listener = this.CovenantClient.ApiListenersGet().FirstOrDefault(L => L.Name == this.listener.Name);
+                this.listenerType = this.CovenantClient.ApiListenersTypesByIdGet(this.listener.ListenerTypeId ?? default);
 
-            List<MenuCommandParameterValue> listenerNames = CovenantClient.ApiListenersGet().Select(L => new MenuCommandParameterValue { Value = L.Name }).ToList();
-            this.MenuItemParameters.FirstOrDefault(L => L.Name == "Listener Name").Values = listenerNames;
-		}
+                List<MenuCommandParameterValue> listenerNames = CovenantClient.ApiListenersGet().Select(L => new MenuCommandParameterValue { Value = L.Name }).ToList();
+                this.MenuItemParameters.FirstOrDefault(L => L.Name == "Listener Name").Values = listenerNames;
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
+        }
 
         public override bool ValidateMenuParameters(string[] parameters, bool forwardEntrance = true)
         {
-            if (forwardEntrance)
+            try
             {
-                if (parameters.Length != 1)
+                if (forwardEntrance)
                 {
-                    EliteConsole.PrintFormattedErrorLine("Must specify a ListenerName.");
-                    EliteConsole.PrintFormattedErrorLine("Usage: Interact <listener_name>");
-                    return false;
-                }
-                string listenerName = parameters[0].ToLower();
-                Listener specifiedListener = CovenantClient.ApiListenersGet().FirstOrDefault(L => L.Name.ToLower() == listenerName);
-                if (specifiedListener == null)
-                {
-                    EliteConsole.PrintFormattedErrorLine("Specified invalid ListenerName: " + listenerName);
-                    EliteConsole.PrintFormattedErrorLine("Usage: Interact <listener_name>");
-                    return false;
-                }
-                this.listener = specifiedListener;
-                this.listenerType = this.CovenantClient.ApiListenersTypesByIdGet(this.listener.ListenerTypeId ?? default);
-                ((HostedFilesMenuItem)this.MenuOptions.FirstOrDefault(MO => MO.MenuTitle == "HostedFiles")).Listener = listener;
+                    if (parameters.Length != 1)
+                    {
+                        EliteConsole.PrintFormattedErrorLine("Must specify a ListenerName.");
+                        EliteConsole.PrintFormattedErrorLine("Usage: Interact <listener_name>");
+                        return false;
+                    }
+                    string listenerName = parameters[0].ToLower();
+                    Listener specifiedListener = CovenantClient.ApiListenersGet().FirstOrDefault(L => L.Name.ToLower() == listenerName);
+                    if (specifiedListener == null)
+                    {
+                        EliteConsole.PrintFormattedErrorLine("Specified invalid ListenerName: " + listenerName);
+                        EliteConsole.PrintFormattedErrorLine("Usage: Interact <listener_name>");
+                        return false;
+                    }
+                    this.listener = specifiedListener;
+                    this.listenerType = this.CovenantClient.ApiListenersTypesByIdGet(this.listener.ListenerTypeId ?? default);
+                    ((HostedFilesMenuItem)this.MenuOptions.FirstOrDefault(MO => MO.MenuTitle == "HostedFiles")).Listener = listener;
 
-                this.MenuTitle = listenerName;
+                    this.MenuTitle = listenerName;
+                }
+                this.Refresh();
             }
-            this.Refresh();
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
             return true;
         }
 

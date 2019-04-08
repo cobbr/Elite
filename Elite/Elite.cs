@@ -81,7 +81,7 @@ namespace Elite
                         if (!PasswordOption.HasValue())
                         {
                             EliteConsole.PrintHighlight("Password: ");
-                            password = GetPassword();
+                            password = Utilities.GetPassword();
                             EliteConsole.PrintInfoLine();
                         }
                         if (!HashOption.HasValue())
@@ -136,12 +136,14 @@ namespace Elite
 
         public CancellationTokenSource CancelEventPoller { get; } = new CancellationTokenSource();
         private EliteMenu EliteMenu { get; set; }
+        private EventPrinter EventPrinter { get; set; }
         private Uri CovenantURI { get; }
         private Task EventPoller { get; set; }
 
         private Elite(Uri CovenantURI)
         {
             this.CovenantURI = CovenantURI;
+            this.EventPrinter = new EventPrinter();
         }
 
         private bool Connect()
@@ -188,7 +190,7 @@ namespace Elite
                     ReadLine.AutoCompletionHandler = this.EliteMenu.GetCurrentMenuItem().TabCompletionHandler;
                     this.EventPoller = new Task(() =>
                     {
-                        int DelayMilliSeconds = 1000;
+                        int DelayMilliSeconds = 2000;
                         DateTime toDate = DateTime.FromBinary(CovenantClient.ApiEventsTimeGet().Value);
                         DateTime fromDate;
                         while (true)
@@ -203,10 +205,8 @@ namespace Elite
                                     string context = this.EliteMenu.GetMenuLevelTitleStack();
                                     if (anEvent.Type == EventType.Normal)
                                     {
-                                        if (this.EliteMenu.EventPrinter.WillPrintEvent(anEvent, context))
+                                        if (this.EventPrinter.PrintEvent(anEvent, context))
                                         {
-                                            EliteConsole.PrintInfoLine();
-                                            this.EliteMenu.EventPrinter.PrintEvent(anEvent, context);
                                             this.EliteMenu.PrintMenuLevel();
                                         }
                                     }
@@ -218,10 +218,7 @@ namespace Elite
                                 }
                                 Thread.Sleep(DelayMilliSeconds);
                             }
-                            catch (Exception e)
-                            {
-                                EliteConsole.PrintFormattedErrorLine("EventPoll Exception: " + e.Message + Environment.NewLine + e.StackTrace);
-                            }
+                            catch (Exception) { }
                         }
                     }, this.CancelEventPoller.Token);
                 }
@@ -248,29 +245,5 @@ namespace Elite
                 EliteStatus = this.EliteMenu.PrintMenu(input);
             }
         }
-
-        private static string GetPassword()
-		{
-			string password = "";
-			ConsoleKeyInfo nextKey = Console.ReadKey(true);
-            while (nextKey.Key != ConsoleKey.Enter)
-            {
-                if (nextKey.Key == ConsoleKey.Backspace)
-                {
-                    if (password.Length > 0)
-                    {
-						password = password.Substring(0, password.Length - 1);
-                        Console.Write("\b \b");
-                    }
-                }
-                else
-                {
-					password += nextKey.KeyChar;
-                    Console.Write("*");
-                }
-                nextKey = Console.ReadKey(true);
-            }
-			return password;
-		}
     }
 }

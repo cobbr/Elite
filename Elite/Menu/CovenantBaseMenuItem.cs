@@ -26,18 +26,18 @@ namespace Elite.Menu
 
     public class CovenantBaseMenuItem : MenuItem
     {
-		public CovenantBaseMenuItem(CovenantAPI CovenantClient, EventPrinter EventPrinter) : base(CovenantClient, EventPrinter)
+		public CovenantBaseMenuItem(CovenantAPI CovenantClient) : base(CovenantClient)
         {
             this.MenuTitle = "Covenant";
             this.MenuDescription = "Base Covenant menu.";
-			this.MenuOptions.Add(new GruntsMenuItem(this.CovenantClient, this.EventPrinter));
-            this.MenuOptions.Add(new LaunchersMenuItem(this.CovenantClient, this.EventPrinter));
-			this.MenuOptions.Add(new ListenersMenuItem(this.CovenantClient, this.EventPrinter));
-            this.MenuOptions.Add(new CredentialsMenuItem(this.CovenantClient, this.EventPrinter));
-            this.MenuOptions.Add(new IndicatorsMenuItem(this.CovenantClient, this.EventPrinter));
+			this.MenuOptions.Add(new GruntsMenuItem(this.CovenantClient));
+            this.MenuOptions.Add(new LaunchersMenuItem(this.CovenantClient));
+			this.MenuOptions.Add(new ListenersMenuItem(this.CovenantClient));
+            this.MenuOptions.Add(new CredentialsMenuItem(this.CovenantClient));
+            this.MenuOptions.Add(new IndicatorsMenuItem(this.CovenantClient));
 			try
 			{
-				this.MenuOptions.Add(new UsersMenuItem(this.CovenantClient, this.EventPrinter));
+				this.MenuOptions.Add(new UsersMenuItem(this.CovenantClient));
 			}
 			catch (Microsoft.Rest.HttpOperationException)
 			{ }
