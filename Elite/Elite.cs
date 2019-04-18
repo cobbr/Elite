@@ -71,37 +71,34 @@ namespace Elite
                         }
                         return -1;
                     }
+                    if (!UserNameOption.HasValue())
+                    {
+                        EliteConsole.PrintHighlight("Username: ");
+                        username = EliteConsole.Read();
+                    }
+                    if (!PasswordOption.HasValue())
+                    {
+                        EliteConsole.PrintHighlight("Password: ");
+                        password = Utilities.GetPassword();
+                        EliteConsole.PrintInfoLine();
+                    }
+                    if (!HashOption.HasValue())
+                    {
+                        EliteConsole.PrintHighlight("Covenant CertHash (Empty to trust all): ");
+                        hash = EliteConsole.Read();
+                    }
+                    EliteConsole.PrintFormattedHighlightLine("Logging in to Covenant...");
+                    bool login = elite.Login(username, password, hash);
+                    if (login)
+                    {
+                        elite.Launch();
+                        elite.CancelEventPoller.Cancel();
+                    }
                     else
                     {
-                        if (!UserNameOption.HasValue())
-                        {
-                            EliteConsole.PrintHighlight("Username: ");
-                            username = EliteConsole.Read();
-                        }
-                        if (!PasswordOption.HasValue())
-                        {
-                            EliteConsole.PrintHighlight("Password: ");
-                            password = Utilities.GetPassword();
-                            EliteConsole.PrintInfoLine();
-                        }
-                        if (!HashOption.HasValue())
-                        {
-                            EliteConsole.PrintHighlight("Covenant CertHash (Empty to trust all): ");
-                            hash = EliteConsole.Read();
-                        }
-                        EliteConsole.PrintFormattedHighlightLine("Logging in to Covenant...");
-                        bool login = elite.Login(username, password, hash);
-                        if (login)
-                        {
-                            elite.Launch();
-                            elite.CancelEventPoller.Cancel();
-                        }
-                        else
-                        {
-                            EliteConsole.PrintFormattedErrorLine("Covenant login failed. Check your username and password again.");
-                            EliteConsole.PrintFormattedErrorLine("Incorrect password for user: " + username);
-                            return -3;
-                        }
+                        EliteConsole.PrintFormattedErrorLine("Covenant login failed. Check your username and password again.");
+                        EliteConsole.PrintFormattedErrorLine("Incorrect password for user: " + username);
+                        return -3;
                     }
                 }
                 catch (HttpRequestException e) when (e.InnerException.GetType().Name == "SocketException")
@@ -170,12 +167,14 @@ namespace Elite
 
         private bool Login(string CovenantUsername, string CovenantPassword, string CovenantHash)
         {
-            HttpClientHandler clientHandler = new HttpClientHandler();
-            clientHandler.ServerCertificateCustomValidationCallback = (sender, cert, chain, errors) =>
+            HttpClientHandler clientHandler = new HttpClientHandler
             {
-                // Cert Pinning - Trusts only the Covenant API certificate
-                if (CovenantHash == "" || cert.GetCertHashString() == CovenantHash) { return true; }
-                else { return false; }
+                ServerCertificateCustomValidationCallback = (sender, cert, chain, errors) =>
+                {
+                    // Cert Pinning - Trusts only the Covenant API certificate
+                    if (CovenantHash == "" || cert.GetCertHashString() == CovenantHash) { return true; }
+                    return false;
+                }
             };
 
             CovenantAPI LoginCovenantClient = new CovenantAPI(this.CovenantURI, new BasicAuthenticationCredentials { UserName = "", Password = "" }, clientHandler);

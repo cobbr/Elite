@@ -16,11 +16,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added sharpup task
 - Added sharpdump task
 - Added sharpwmi task
+- Added safetykatz task
+- Added seatbelt task
+- Added killdate option
 
 ### Changed
 - Event printing moved to task
 - Event creation moved to Covenant controllers
 - TaskMenu now displays full task description, detailed parameter info
+- Limited API refereshes and calls to improve speed
 
 ### Fixed
 - Fixed bad command causing following commands to fail

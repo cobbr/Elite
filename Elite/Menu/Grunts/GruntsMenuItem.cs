@@ -2,6 +2,7 @@
 // Project: Elite (https://github.com/cobbr/Elite)
 // License: GNU GPLv3
 
+using System;
 using System.Linq;
 using System.Collections.Generic;
 
@@ -23,8 +24,8 @@ namespace Elite.Menu.Grunts
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
+            menuItem.Refresh();
             GruntsMenuItem gruntsMenuItem = (GruntsMenuItem)menuItem;
-            gruntsMenuItem.ValidateMenuParameters();
             List<Grunt> displayGrunts = gruntsMenuItem.Grunts.Where(G => G.Status != GruntStatus.Uninitialized && !gruntsMenuItem.HiddenGruntNames.Contains(G.Name)).ToList();
             EliteConsoleMenu menu = new EliteConsoleMenu(EliteConsoleMenu.EliteConsoleMenuType.List, "Grunts");
             menu.Columns.Add("Name");
@@ -51,44 +52,138 @@ namespace Elite.Menu.Grunts
             this.Name = "Rename";
             this.Description = "Rename a Grunt";
             this.Parameters = new List<MenuCommandParameter> {
-                new MenuCommandParameter{ Name = "Old Name" },
-                new MenuCommandParameter{ Name = "New Name" }
+                new MenuCommandParameter { Name = "Old Name" },
+                new MenuCommandParameter { Name = "New Name" }
             };
         }
 
-        public override void Command(MenuItem menuItem, string UserInput)
+        public override async void Command(MenuItem menuItem, string UserInput)
         {
-            menuItem.Refresh();
             GruntsMenuItem gruntsMenu = ((GruntsMenuItem)menuItem);
             string[] commands = UserInput.Split(" ");
-            if (commands.Length != 3 || commands[0].ToLower() != "rename")
+            if (commands.Length != 3 || !commands[0].Equals("rename", StringComparison.OrdinalIgnoreCase))
             {
                 menuItem.PrintInvalidOptionError(UserInput);
                 return;
             }
 
-            Grunt grunt = gruntsMenu.Grunts.FirstOrDefault(G => G.Name.ToLower() == commands[1]);
+            Grunt grunt = gruntsMenu.Grunts.FirstOrDefault(G => G.Name.Equals(commands[1], StringComparison.OrdinalIgnoreCase));
             if (grunt == null)
             {
                 EliteConsole.PrintFormattedErrorLine("Grunt with name: " + commands[1] + " does not exist.");
                 menuItem.PrintInvalidOptionError(UserInput);
+                return;
             }
-            else if (gruntsMenu.Grunts.Where(G => G.Name.ToLower() == commands[2].ToLower()).Any())
+            if (gruntsMenu.Grunts.Any(G => G.Name.Equals(commands[2], StringComparison.OrdinalIgnoreCase)))
             {
                 EliteConsole.PrintFormattedErrorLine("Grunt with name: " + commands[2] + " already exists.");
                 menuItem.PrintInvalidOptionError(UserInput);
+                return;
             }
-            else
+            grunt.Name = commands[2];
+            try
             {
-                grunt.Name = commands[2];
-                try
+                await this.CovenantClient.ApiGruntsPutAsync(grunt);
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
+        }
+    }
+
+    public class MenuCommandGruntsDelay : MenuCommand
+    {
+        public MenuCommandGruntsDelay(CovenantAPI CovenantClient) : base(CovenantClient)
+        {
+            this.Name = "Delay";
+            this.Description = "Delay an active Grunt.";
+            try
+            {
+                this.Parameters = new List<MenuCommandParameter> {
+                    new MenuCommandParameter { Name = "Grunt Name" },
+                    new MenuCommandParameter { Name = "Seconds" }
+                };
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
+        }
+
+        public override async void Command(MenuItem menuItem, string UserInput)
+        {
+            GruntsMenuItem gruntsMenuItem = (GruntsMenuItem)menuItem;
+            string[] commands = UserInput.Split(" ");
+            if (commands.Length != 3 || !commands[0].Equals("delay", StringComparison.OrdinalIgnoreCase))
+            {
+                menuItem.PrintInvalidOptionError(UserInput);
+                return;
+            }
+            if (!int.TryParse(commands[2], out int n))
+            {
+                menuItem.PrintInvalidOptionError(UserInput);
+                return;
+            }
+            if (commands[1].Equals("all", StringComparison.OrdinalIgnoreCase))
+            {
+                EliteConsole.PrintFormattedWarning("Delay all Grunts? [y/N] ");
+                string input1 = EliteConsole.Read();
+                if (!input1.StartsWith("y", StringComparison.OrdinalIgnoreCase))
                 {
-                    this.CovenantClient.ApiGruntsPut(grunt);
+                    return;
                 }
-                catch (HttpOperationException e)
+                foreach (Grunt g in gruntsMenuItem.Grunts)
                 {
-                    EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+                    GruntTasking gt = new GruntTasking
+                    {
+                        Id = 0,
+                        GruntId = g.Id,
+                        TaskId = 1,
+                        Name = Guid.NewGuid().ToString().Replace("-", "").Substring(0, 10),
+                        Status = GruntTaskingStatus.Uninitialized,
+                        Type = GruntTaskingType.SetDelay,
+                        TaskingMessage = n.ToString(),
+                        TaskingCommand = UserInput,
+                        TokenTask = false
+                    };
+                    try
+                    {
+                        await this.CovenantClient.ApiGruntsByIdTaskingsPostAsync(g.Id ?? default, gt);
+                    }
+                    catch (HttpOperationException e)
+                    {
+                        EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+                    }
                 }
+                return;
+            }
+            Grunt grunt = gruntsMenuItem.Grunts.FirstOrDefault(G => G.Name == commands[1]);
+            if (grunt == null)
+            {
+                EliteConsole.PrintFormattedErrorLine("Invalid GruntName: \"" + commands[1] + "\"");
+                menuItem.PrintInvalidOptionError(UserInput);
+                return;
+            }
+            GruntTasking gruntTasking = new GruntTasking
+            {
+                Id = 0,
+                GruntId = grunt.Id,
+                TaskId = 1,
+                Name = Guid.NewGuid().ToString().Replace("-", "").Substring(0, 10),
+                Status = GruntTaskingStatus.Uninitialized,
+                Type = GruntTaskingType.SetDelay,
+                TaskingMessage = n.ToString(),
+                TaskingCommand = UserInput,
+                TokenTask = false
+            };
+            try
+            {
+                await this.CovenantClient.ApiGruntsByIdTaskingsPostAsync(grunt.Id ?? default, gruntTasking);
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
             }
         }
     }
@@ -102,11 +197,7 @@ namespace Elite.Menu.Grunts
             try
             {
                 this.Parameters = new List<MenuCommandParameter> {
-                    new MenuCommandParameter {
-                        Name = "Grunt Name",
-                        Values = CovenantClient.ApiGruntsGet().Where(G => G.Status != GruntStatus.Uninitialized)
-                                               .Select(G => new MenuCommandParameterValue { Value = G.Name }).ToList()
-                    }
+                    new MenuCommandParameter { Name = "Grunt Name" }
                 };
             }
             catch (HttpOperationException e)
@@ -115,36 +206,46 @@ namespace Elite.Menu.Grunts
             }
         }
 
-        public override void Command(MenuItem menuItem, string UserInput)
+        public override async void Command(MenuItem menuItem, string UserInput)
         {
             GruntsMenuItem gruntsMenuItem = (GruntsMenuItem)menuItem;
             string[] commands = UserInput.Split(" ");
-            if (commands.Length != 2 || commands[0].ToLower() != "kill")
+            if (commands.Length != 2 || !commands[0].Equals("kill", StringComparison.OrdinalIgnoreCase))
             {
                 menuItem.PrintInvalidOptionError(UserInput);
                 return;
             }
-            if (commands[1].ToLower() == "all")
+            if (commands[1].Equals("all", StringComparison.OrdinalIgnoreCase))
             {
                 EliteConsole.PrintFormattedWarning("Kill all Grunts? [y/N] ");
                 string input1 = EliteConsole.Read();
-                if (!input1.ToLower().StartsWith("y"))
+                if (!input1.StartsWith("y", StringComparison.OrdinalIgnoreCase))
                 {
                     return;
                 }
-                gruntsMenuItem.HiddenGruntNames.AddRange(gruntsMenuItem.Grunts.Select(G => G.Name));
                 foreach (Grunt g in gruntsMenuItem.Grunts)
                 {
-                    GruntTasking gt = new GruntTasking { Type = GruntTaskingType.Kill, GruntId = g.Id };
+                    GruntTasking gt = new GruntTasking
+                    {
+                        Id = 0,
+                        GruntId = g.Id,
+                        TaskId = 1,
+                        Name = Guid.NewGuid().ToString().Replace("-", "").Substring(0, 10),
+                        Status = GruntTaskingStatus.Uninitialized,
+                        Type = GruntTaskingType.Kill,
+                        TaskingCommand = UserInput,
+                        TokenTask = false
+                    };
                     try
                     {
-                        this.CovenantClient.ApiGruntsByIdTaskingsPost(g.Id ?? default, gt);
+                        await this.CovenantClient.ApiGruntsByIdTaskingsPostAsync(g.Id ?? default, gt);
                     }
                     catch (HttpOperationException e)
                     {
                         EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
                     }
                 }
+                return;
             }
             Grunt grunt = gruntsMenuItem.Grunts.FirstOrDefault(G => G.Name == commands[1]);
             if (grunt == null)
@@ -155,14 +256,24 @@ namespace Elite.Menu.Grunts
             }
             EliteConsole.PrintFormattedWarning("Kill Grunt: " + commands[1] + "? [y/N] ");
             string input2 = EliteConsole.Read();
-            if (!input2.ToLower().StartsWith("y"))
+            if (!input2.StartsWith("y", StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
-            GruntTasking gruntTasking = new GruntTasking { Type = GruntTaskingType.Kill, GruntId = grunt.Id };
+            GruntTasking gruntTasking = new GruntTasking
+            {
+                Id = 0,
+                GruntId = grunt.Id,
+                TaskId = 1,
+                Name = Guid.NewGuid().ToString().Replace("-", "").Substring(0, 10),
+                Status = GruntTaskingStatus.Uninitialized,
+                Type = GruntTaskingType.Kill,
+                TaskingCommand = UserInput,
+                TokenTask = false
+            };
             try
             {
-                this.CovenantClient.ApiGruntsByIdTaskingsPost(grunt.Id ?? default, gruntTasking);
+                await this.CovenantClient.ApiGruntsByIdTaskingsPostAsync(grunt.Id ?? default, gruntTasking);
             }
             catch (HttpOperationException e)
             {
@@ -173,18 +284,14 @@ namespace Elite.Menu.Grunts
 
     public class MenuCommandGruntsHide : MenuCommand
     {
-        public MenuCommandGruntsHide(CovenantAPI CovenantClient) : base(CovenantClient)
+        public MenuCommandGruntsHide() : base()
         {
             this.Name = "Hide";
             this.Description = "Hide an inactive Grunt.";
             try
             {
                 this.Parameters = new List<MenuCommandParameter> {
-                    new MenuCommandParameter {
-                        Name = "Grunt Name",
-                        Values = CovenantClient.ApiGruntsGet().Where(G => G.Status != GruntStatus.Uninitialized)
-                                               .Select(G => new MenuCommandParameterValue { Value = G.Name }).ToList()
-                    }
+                    new MenuCommandParameter { Name = "Grunt Name" }
                 };
             }
             catch (HttpOperationException e)
@@ -197,14 +304,15 @@ namespace Elite.Menu.Grunts
         {
             GruntsMenuItem gruntsMenuItem = (GruntsMenuItem)menuItem;
             string[] commands = UserInput.Split(" ");
-            if (commands.Length != 2 || commands[0].ToLower() != "hide")
+            if (commands.Length != 2 || !commands[0].Equals("hide", StringComparison.OrdinalIgnoreCase))
             {
                 menuItem.PrintInvalidOptionError(UserInput);
                 return;
             }
-            if (commands[1].ToLower() == "all")
+            if (commands[1].Equals("all", StringComparison.OrdinalIgnoreCase))
             {
                 gruntsMenuItem.HiddenGruntNames.AddRange(gruntsMenuItem.Grunts.Select(G => G.Name));
+                return;
             }
             Grunt grunt = gruntsMenuItem.Grunts.FirstOrDefault(G => G.Name == commands[1]);
             if (grunt == null)
@@ -215,7 +323,7 @@ namespace Elite.Menu.Grunts
             }
             EliteConsole.PrintFormattedWarning("Hide Grunt: " + commands[1] + "? [y/N] ");
             string input = EliteConsole.Read();
-            if (!input.ToLower().StartsWith("y"))
+            if (!input.StartsWith("y", StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
@@ -225,7 +333,7 @@ namespace Elite.Menu.Grunts
 
     public class MenuCommandGruntsUnhide : MenuCommand
     {
-        public MenuCommandGruntsUnhide(CovenantAPI CovenantClient) : base(CovenantClient)
+        public MenuCommandGruntsUnhide() : base()
         {
             this.Name = "Unhide";
             this.Description = "Unhide a hidden Grunt.";
@@ -238,17 +346,18 @@ namespace Elite.Menu.Grunts
         {
             GruntsMenuItem gruntsMenuItem = (GruntsMenuItem)menuItem;
             string[] commands = UserInput.Split(" ");
-            if (commands.Length != 2 || commands[0].ToLower() != "unhide")
+            if (commands.Length != 2 || !commands[0].Equals("unhide", StringComparison.OrdinalIgnoreCase))
             {
                 menuItem.PrintInvalidOptionError(UserInput);
                 return;
             }
-            if (commands[1].ToLower() == "all")
+            if (commands[1].Equals("all", StringComparison.OrdinalIgnoreCase))
             {
                 gruntsMenuItem.HiddenGruntNames.Clear();
+                return;
             }
             string gruntName = gruntsMenuItem.HiddenGruntNames.FirstOrDefault(HGN => HGN == commands[1]);
-            if (gruntName == null || gruntName == "")
+            if (string.IsNullOrEmpty(gruntName))
             {
                 EliteConsole.PrintFormattedErrorLine("Invalid GruntName: \"" + commands[1] + "\"");
                 menuItem.PrintInvalidOptionError(UserInput);
@@ -270,18 +379,17 @@ namespace Elite.Menu.Grunts
 			this.MenuOptions.Add(new GruntInteractMenuItem(this.CovenantClient));
             this.AdditionalOptions.Add(new MenuCommandGruntsShow());
             this.AdditionalOptions.Add(new MenuCommandGruntsRename(CovenantClient));
+            this.AdditionalOptions.Add(new MenuCommandGruntsDelay(CovenantClient));
             this.AdditionalOptions.Add(new MenuCommandGruntsKill(CovenantClient));
-            this.AdditionalOptions.Add(new MenuCommandGruntsHide(CovenantClient));
-            this.AdditionalOptions.Add(new MenuCommandGruntsUnhide(CovenantClient));
-
-            this.SetupMenuAutoComplete();
+            this.AdditionalOptions.Add(new MenuCommandGruntsHide());
+            this.AdditionalOptions.Add(new MenuCommandGruntsUnhide());
         }
 
 		public override void Refresh()
 		{
             try
             {
-                this.Grunts = CovenantClient.ApiGruntsGet().ToList();
+                this.Grunts = this.CovenantClient.ApiGruntsGet().ToList();
             }
             catch (HttpOperationException e)
             {
@@ -294,15 +402,35 @@ namespace Elite.Menu.Grunts
 
             this.MenuOptions.FirstOrDefault(M => M.MenuTitle == "Interact")
                             .MenuItemParameters.FirstOrDefault(P => P.Name == "Grunt Name").Values = gruntNames;
-            this.AdditionalOptions.FirstOrDefault(O => O.Name == "Kill")
-                                  .Parameters.FirstOrDefault(P => P.Name == "Grunt Name").Values = killableGruntNames;
+
             this.AdditionalOptions.FirstOrDefault(AO => AO.Name == "Rename")
-                                  .Parameters.FirstOrDefault(P => P.Name == "Old Name").Values = gruntNames;
+                .Parameters.FirstOrDefault(P => P.Name == "Old Name").Values = gruntNames;
+
+            this.AdditionalOptions.FirstOrDefault(O => O.Name == "Delay")
+                .Parameters.FirstOrDefault(P => P.Name == "Grunt Name").Values =
+                    gruntNames.AsEnumerable()
+                        .Append(new MenuCommandParameterValue { Value = "all" })
+                        .ToList();
+
+            this.AdditionalOptions.FirstOrDefault(O => O.Name == "Kill")
+                .Parameters.FirstOrDefault(P => P.Name == "Grunt Name").Values =
+                    killableGruntNames.AsEnumerable()
+                        .Append(new MenuCommandParameterValue { Value = "all" })
+                        .ToList();
+
             this.AdditionalOptions.FirstOrDefault(AO => AO.Name == "Hide")
-                                  .Parameters.FirstOrDefault(P => P.Name == "Grunt Name").Values = gruntNames.Where(GN => !this.HiddenGruntNames.Contains(GN.Value)).ToList();
+                .Parameters.FirstOrDefault(P => P.Name == "Grunt Name").Values =
+                    gruntNames.Where(GN => !this.HiddenGruntNames.Contains(GN.Value))
+                        .Append(new MenuCommandParameterValue { Value = "all" })
+                        .ToList();
+
             this.AdditionalOptions.FirstOrDefault(AO => AO.Name == "Unhide")
-                                  .Parameters.FirstOrDefault(P => P.Name == "Hidden Grunt Name").Values = this.HiddenGruntNames
-                                  .Select(G => new MenuCommandParameterValue { Value = G}).ToList();
+                .Parameters.FirstOrDefault(P => P.Name == "Hidden Grunt Name").Values =
+                    this.HiddenGruntNames
+                        .Select(G => new MenuCommandParameterValue { Value = G })
+                        .Append(new MenuCommandParameterValue { Value = "all" })
+                        .ToList();
+
             this.SetupMenuAutoComplete();
 		}
 

@@ -5,7 +5,6 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Net.Http;
 using System.Collections.Generic;
 
 using Covenant.API;
@@ -15,12 +14,10 @@ namespace Elite.Menu
     public abstract class MenuCommand
     {
 		protected readonly CovenantAPI CovenantClient;
-		protected readonly EventPrinter EventPrinter;
-        
-		public MenuCommand(CovenantAPI CovenantClient = null, EventPrinter EventPrinter = null)
+
+		public MenuCommand(CovenantAPI CovenantClient = null)
         {
             this.CovenantClient = CovenantClient;
-			this.EventPrinter = EventPrinter;
         }
 
         public string Name { get; set; }
@@ -53,7 +50,7 @@ namespace Elite.Menu
 
     public class MenuCommandHelp : MenuCommand
     {
-		public MenuCommandHelp() : base()
+		public MenuCommandHelp()
         {
             this.Name = "Help";
             this.Description = "Display Help for this menu.";

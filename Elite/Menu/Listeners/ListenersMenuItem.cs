@@ -25,11 +25,13 @@ namespace Elite.Menu.Listeners
         public override void Command(MenuItem menuItem, string UserInput)
         {
             menuItem.Refresh();
-            ListenersMenuItem listenersMenu = ((ListenersMenuItem)menuItem);
+            List<Listener> Listeners = ((ListenersMenuItem)menuItem).Listeners;
+            List<ListenerType> ListenerTypes = ((ListenersMenuItem)menuItem).ListenerTypes;
+
             EliteConsoleMenu typeMenu = new EliteConsoleMenu(EliteConsoleMenu.EliteConsoleMenuType.List, "Listener Types");
             typeMenu.Columns.Add("ListenerName");
             typeMenu.Columns.Add("Description");
-            listenersMenu.ListenerTypes.ToList().ForEach(L =>
+            ListenerTypes.ToList().ForEach(L =>
             {
                 typeMenu.Rows.Add(new List<string> { L.Name, L.Description });
             });
@@ -43,11 +45,11 @@ namespace Elite.Menu.Listeners
             instanceMenu.Columns.Add("StartTime");
             instanceMenu.Columns.Add("BindAddress");
             instanceMenu.Columns.Add("BindPort");
-            listenersMenu.Listeners.ToList().ForEach(L =>
+            Listeners.ToList().ForEach(L =>
             {
                 instanceMenu.Rows.Add(new List<string> {
                     L.Name,
-                    listenersMenu.ListenerTypes.FirstOrDefault(LT => LT.Id == L.ListenerTypeId).Name,
+                    ListenerTypes.FirstOrDefault(LT => LT.Id == L.ListenerTypeId).Name,
                     L.Status.ToString(),
                     L.StartTime.ToString(),
                     L.BindAddress,
@@ -67,10 +69,7 @@ namespace Elite.Menu.Listeners
             try
             {
                 this.Parameters = new List<MenuCommandParameter> {
-                    new MenuCommandParameter {
-                        Name = "Old Name",
-                        Values = this.CovenantClient.ApiListenersGet().Select(L => new MenuCommandParameterValue { Value = L.Name }).ToList()
-                    },
+                    new MenuCommandParameter { Name = "Old Name" },
                     new MenuCommandParameter { Name = "New Name" }
                 };
             }
@@ -80,35 +79,35 @@ namespace Elite.Menu.Listeners
             }
         }
 
-        public override void Command(MenuItem menuItem, string UserInput)
+        public override async void Command(MenuItem menuItem, string UserInput)
         {
             try
             {
-                menuItem.Refresh();
-                ListenersMenuItem listenersMenu = ((ListenersMenuItem)menuItem);
                 string[] commands = UserInput.Split(" ");
-                if (commands.Length != 3 || commands[0].ToLower() != "rename")
+                if (commands.Length != 3 || !commands[0].Equals(this.Name, StringComparison.OrdinalIgnoreCase))
                 {
                     menuItem.PrintInvalidOptionError(UserInput);
                     return;
                 }
 
-                Listener listener = listenersMenu.Listeners.FirstOrDefault(L => L.Name.ToLower() == commands[1]);
+                List<Listener> Listeners = ((ListenersMenuItem)menuItem).Listeners;
+                Listener listener = Listeners.FirstOrDefault(L => L.Name.Equals(commands[1], StringComparison.OrdinalIgnoreCase));
                 if (listener == null)
                 {
                     EliteConsole.PrintFormattedErrorLine("Listener with name: " + commands[1] + " does not exist.");
                     menuItem.PrintInvalidOptionError(UserInput);
+                    return;
                 }
-                else if (listenersMenu.Listeners.Where(L => L.Name.ToLower() == commands[2].ToLower()).Any())
+
+                if (Listeners.Any(L => L.Name.Equals(commands[2], StringComparison.OrdinalIgnoreCase)))
                 {
                     EliteConsole.PrintFormattedErrorLine("Listener with name: " + commands[2] + " already exists.");
                     menuItem.PrintInvalidOptionError(UserInput);
+                    return;
                 }
-                else
-                {
-                    listener.Name = commands[2];
-                    this.CovenantClient.ApiListenersPut(listener);
-                }
+
+                listener.Name = commands[2];
+                await this.CovenantClient.ApiListenersPutAsync(listener);
             }
             catch (HttpOperationException e)
             {
@@ -132,9 +131,6 @@ namespace Elite.Menu.Listeners
 
             this.AdditionalOptions.Add(new MenuCommandListenersShow());
             this.AdditionalOptions.Add(new MenuCommandListenersRename(CovenantClient));
-
-            this.SetupMenuAutoComplete();
-            this.Refresh();
         }
 
         public override bool ValidateMenuParameters(string[] parameters = null, bool forwardEntrance = true)
@@ -152,14 +148,19 @@ namespace Elite.Menu.Listeners
 		{
             try
             {
-                ListenerTypes = this.CovenantClient.ApiListenersTypesGet().ToList();
-                Listeners = this.CovenantClient.ApiListenersGet().Where(L => L.Status != ListenerStatus.Uninitialized).ToList();
+                this.ListenerTypes = this.CovenantClient.ApiListenersTypesGet().ToList();
+                this.Listeners = this.CovenantClient.ApiListenersGet().Where(L => L.Status != ListenerStatus.Uninitialized).ToList();
                 List<MenuCommandParameterValue> listenerNames = this.Listeners.Select(L => new MenuCommandParameterValue { Value = L.Name }).ToList();
 
                 this.MenuOptions.FirstOrDefault(M => M.MenuTitle == "Interact")
-                    .MenuItemParameters.FirstOrDefault(P => P.Name == "Listener Name").Values = listenerNames;
+                    .MenuItemParameters
+                    .FirstOrDefault(P => P.Name == "Listener Name")
+                    .Values = listenerNames;
+
                 this.AdditionalOptions.FirstOrDefault(AO => AO.Name == "Rename")
-                    .Parameters.FirstOrDefault(P => P.Name == "Old Name").Values = listenerNames;
+                    .Parameters
+                    .FirstOrDefault(P => P.Name == "Old Name")
+                    .Values = listenerNames;
 
                 this.SetupMenuAutoComplete();
             }

@@ -25,10 +25,8 @@ namespace Elite.Menu.Tasks
         {
             try
             {
-                TaskMenuItem taskMenuItem = (TaskMenuItem)menuItem;
-                // Refresh the task object
-                taskMenuItem.Task = this.CovenantClient.ApiGrunttasksByIdGet(taskMenuItem.Task.Id ?? default);
-                GruntTask task = taskMenuItem.Task;
+                menuItem.Refresh();
+                GruntTask task = ((TaskMenuItem)menuItem).Task;
 
                 EliteConsoleMenu menu = new EliteConsoleMenu(EliteConsoleMenu.EliteConsoleMenuType.Parameter, "Task: " + task.Name)
                 {
@@ -89,22 +87,22 @@ namespace Elite.Menu.Tasks
         {
             try
             {
-                TaskMenuItem taskMenuItem = ((TaskMenuItem)menuItem);
                 List<string> commands = UserInput.Split(" ").ToList();
-                GruntTaskOption option = taskMenuItem.Task.Options.FirstOrDefault(O => O.Name.ToLower() == commands[1].ToLower());
-                if (commands.Count() < 3 || commands.First().ToLower() != "set")
+                if (commands.Count() < 3 || !commands[0].Equals(this.Name, StringComparison.OrdinalIgnoreCase))
                 {
                     menuItem.PrintInvalidOptionError(UserInput);
+                    return;
                 }
-                else if (option == null)
+                GruntTask task = ((TaskMenuItem)menuItem).Task;
+                GruntTaskOption option = task.Options.FirstOrDefault(O => O.Name.ToLower() == commands[1].ToLower());
+                if (option == null)
                 {
                     EliteConsole.PrintFormattedErrorLine("Invalid Set option: \"" + commands[1] + "\"");
+                    menuItem.PrintInvalidOptionError(UserInput);
+                    return;
                 }
-                else
-                {
-                    option.Value = String.Join(" ", commands.GetRange(2, commands.Count() - 2));
-                    this.CovenantClient.ApiGrunttasksPut(taskMenuItem.Task);
-                }
+                option.Value = String.Join(" ", commands.GetRange(2, commands.Count() - 2));
+                this.CovenantClient.ApiGrunttasksPut(task);
             }
             catch (HttpOperationException e)
             {
@@ -119,15 +117,15 @@ namespace Elite.Menu.Tasks
         {
             this.Name = "Start";
             this.Description = "Start the Task";
-            this.Parameters = new List<MenuCommandParameter> { };
+            this.Parameters = new List<MenuCommandParameter>();
         }
 
-        public override void Command(MenuItem menuItem, string UserInput)
+        public override async void Command(MenuItem menuItem, string UserInput)
         {
             Grunt grunt = ((TaskMenuItem)menuItem).Grunt;
             try
             {
-                GruntTask task = ((TaskMenuItem)menuItem).Task = this.CovenantClient.ApiGrunttasksByIdGet(((TaskMenuItem)menuItem).Task.Id ?? default);
+                GruntTask task = ((TaskMenuItem)menuItem).Task;
                 GruntTasking gruntTasking = new GruntTasking
                 {
                     TaskId = task.Id,
@@ -137,7 +135,7 @@ namespace Elite.Menu.Tasks
                     TokenTask = task.TokenTask,
                     TaskingCommand = UserInput.ToLower() == "Start" ? (task.Name + " " + String.Join(' ', task.Options.Select(O => "/" + O.Name.ToLower() + " " + O.Value).ToList())) : UserInput
                 };
-                GruntTasking postedGruntTasking = this.CovenantClient.ApiGruntsByIdTaskingsPost(grunt.Id ?? default, gruntTasking);
+                await this.CovenantClient.ApiGruntsByIdTaskingsPostAsync(grunt.Id ?? default, gruntTasking);
             }
             catch (HttpOperationException)
             {
@@ -150,17 +148,18 @@ namespace Elite.Menu.Tasks
     {
         public GruntTask Task { get; set; }
         public Grunt Grunt { get; set; }
-		public TaskMenuItem(CovenantAPI CovenantClient, Grunt grunt) : base(CovenantClient)
+
+        public TaskMenuItem(CovenantAPI CovenantClient, Grunt Grunt) : base(CovenantClient)
         {
             try
             {
-                this.Grunt = grunt;
+                this.Grunt = Grunt;
                 this.MenuTitle = "Task";
                 this.MenuDescription = "Task a Grunt to do something.";
                 this.MenuItemParameters = new List<MenuCommandParameter> {
                 new MenuCommandParameter {
                         Name = "Task Name",
-                        Values = CovenantClient.ApiGrunttasksGet().Select(T => new MenuCommandParameterValue { Value = T.Name }).ToList()
+                        Values = this.CovenantClient.ApiGrunttasksGet().Select(T => new MenuCommandParameterValue { Value = T.Name }).ToList()
                     }
                 };
 
@@ -169,8 +168,6 @@ namespace Elite.Menu.Tasks
                 var setCommand = new MenuCommandTaskSet(CovenantClient);
                 this.AdditionalOptions.Add(setCommand);
                 this.AdditionalOptions.Add(new MenuCommandGenericUnset(setCommand.Parameters.FirstOrDefault(P => P.Name == "Option").Values));
-
-                this.SetupMenuAutoComplete();
             }
             catch (HttpOperationException e)
             {
@@ -178,20 +175,39 @@ namespace Elite.Menu.Tasks
             }
         }
 
-		public override void Refresh()
-		{
-            MenuCommand setCommand = GetTaskMenuSetCommand(Task, CovenantClient);
-            AdditionalOptions[AdditionalOptions.IndexOf(
-                this.AdditionalOptions.FirstOrDefault(MC => MC.Name == "Set")
-            )] = setCommand;
-            AdditionalOptions[AdditionalOptions.IndexOf(
-                this.AdditionalOptions.FirstOrDefault(MC => MC.Name == "Unset")
-            )] = new MenuCommandGenericUnset(setCommand.Parameters.FirstOrDefault(P => P.Name == "Option").Values);
+        public override void Refresh()
+        {
+            this.Task = this.CovenantClient.ApiGrunttasksByIdGet(this.Task.Id ?? default);
+            this.Grunt = this.CovenantClient.ApiGruntsByIdGet(this.Grunt.Id ?? default);
+
+            List<string> filePathTasks = new List<string> { "Assembly", "AssemblyReflect", "Upload", "ShellCode" };
+            if (filePathTasks.Contains(this.Task.Name))
+            {
+                var filepaths = Utilities.GetFilesForPath(Common.EliteDataFolder);
+                var setoptionparam = this.AdditionalOptions.FirstOrDefault(AO => AO.Name == "Set")
+                                        .Parameters
+                                        .FirstOrDefault(P => P.Name == "Option");
+                if (!setoptionparam.Values.Select(V => V.Value).Contains("LocalFilePath"))
+                {
+                    setoptionparam.Values.Add(new MenuCommandParameterValue
+                    {
+                        Value = "LocalFilePath",
+                        NextValueSuggestions = filepaths
+                    });
+                }
+                else
+                {
+                    setoptionparam.Values.FirstOrDefault(V => V.Value == "LocalFilePath").NextValueSuggestions = filepaths;
+                }
+                this.AdditionalOptions[AdditionalOptions.IndexOf(
+                    this.AdditionalOptions.FirstOrDefault(MC => MC.Name == "Unset")
+                )] = new MenuCommandGenericUnset(setoptionparam.Values);
+            }
 
             this.SetupMenuAutoComplete();
-		}
+        }
 
-		public override bool ValidateMenuParameters(string[] parameters, bool forwardEntrance = true)
+        public override bool ValidateMenuParameters(string[] parameters, bool forwardEntrance = true)
         {
             try
             {
@@ -212,8 +228,15 @@ namespace Elite.Menu.Tasks
                     }
                     this.Task = gruntTask;
                     this.MenuTitle = this.Task.Name;
-
                 }
+                MenuCommand setCommand = GetTaskMenuSetCommand(this.Task.Name, CovenantClient);
+                this.AdditionalOptions[AdditionalOptions.IndexOf(
+                    this.AdditionalOptions.FirstOrDefault(MC => MC.Name == "Set")
+                )] = setCommand;
+                AdditionalOptions[AdditionalOptions.IndexOf(
+                    this.AdditionalOptions.FirstOrDefault(MC => MC.Name == "Unset")
+                )] = new MenuCommandGenericUnset(setCommand.Parameters.FirstOrDefault(P => P.Name == "Option").Values);
+
                 this.Refresh();
             }
             catch (HttpOperationException e)
@@ -233,93 +256,20 @@ namespace Elite.Menu.Tasks
             this.MenuTitle = "Task";
         }
 
-        private static MenuCommand GetTaskMenuSetCommand(GruntTask task, CovenantAPI CovenantClient)
+        private static MenuCommand GetTaskMenuSetCommand(string TaskName, CovenantAPI CovenantClient)
         {
-            List<MenuCommandParameterValue> DefaultOptions = task.Options.Select(O => new MenuCommandParameterValue { Value = O.Name }).ToList();
-            switch (task.Name)
+            switch (TaskName)
             {
                 case "Assembly":
-                    return new MenuCommandAssemblyTaskSet(CovenantClient)
-                    {
-                        Name = "Set",
-                        Description = "Set AssemblyTask option",
-                        Parameters = new List<MenuCommandParameter> {
-                            new MenuCommandParameter {
-                                Name = "Option",
-                                Values = DefaultOptions.Append(
-                                    new MenuCommandParameterValue {
-                                        Value = "AssemblyPath",
-                                        NextValueSuggestions = Utilities.GetFilesForPath(Common.EliteDataFolder)
-                                    }
-                                ).ToList()
-                            },
-                            new MenuCommandParameter { Name = "Value" }
-                        }
-                    };
+                    return new MenuCommandAssemblyTaskSet(CovenantClient);
                 case "AssemblyReflect":
-                    return new MenuCommandAssemblyReflectTaskSet(CovenantClient)
-                    {
-                        Name = "Set",
-                        Description = "Set AssemblyReflectTask option",
-                        Parameters = new List<MenuCommandParameter> {
-                            new MenuCommandParameter {
-                                Name = "Option",
-                                Values = DefaultOptions.Append(
-                                    new MenuCommandParameterValue {
-                                        Value = "AssemblyPath",
-                                        NextValueSuggestions = Utilities.GetFilesForPath(Common.EliteDataFolder)
-                                    }
-                                ).ToList()
-                            },
-                            new MenuCommandParameter { Name = "Value" }
-                        }
-                    };
+                    return new MenuCommandAssemblyReflectTaskSet(CovenantClient);
                 case "Upload":
-					return new MenuCommandUploadTaskSet(CovenantClient)
-					{
-                        Name = "Set",
-						Description = "Set Upload option",
-						Parameters = new List<MenuCommandParameter> {
-                            new MenuCommandParameter {
-                                Name = "Option",
-                                Values = DefaultOptions.Append(
-                                    new MenuCommandParameterValue {
-                                        Value = "FilePath",
-                                        NextValueSuggestions = Utilities.GetFilesForPath(Common.EliteDataFolder)
-                                    }
-                                ).ToList()
-                            },
-							new MenuCommandParameter { Name = "Value" }
-						}
-					};
+                    return new MenuCommandUploadTaskSet(CovenantClient);
                 case "ShellCode":
-                    return new MenuCommandShellCodeTaskSet(CovenantClient)
-                    {
-                        Name = "Set",
-                        Description = "Set ShellCode option",
-                        Parameters = new List<MenuCommandParameter> {
-                            new MenuCommandParameter {
-                                Name = "Option",
-                                Values = DefaultOptions.Append(
-                                    new MenuCommandParameterValue {
-                                        Value = "ShellcodeBinFilePath",
-                                        NextValueSuggestions = Utilities.GetFilesForPath(Common.EliteDataFolder)
-                                    }
-                                ).ToList()
-                            },
-                            new MenuCommandParameter { Name = "Value" }
-                        }
-                    };
+                    return new MenuCommandShellCodeTaskSet(CovenantClient);
                 default:
-                    return new MenuCommandTaskSet(CovenantClient)
-                    {
-                        Name = "Set",
-                        Description = "Set " + task.Name + " option",
-                        Parameters = new List<MenuCommandParameter> {
-                            new MenuCommandParameter { Name = "Option", Values = DefaultOptions },
-                            new MenuCommandParameter { Name = "Value" }
-                        }
-                    };
+                    return new MenuCommandTaskSet(CovenantClient);
             }
         }
     }

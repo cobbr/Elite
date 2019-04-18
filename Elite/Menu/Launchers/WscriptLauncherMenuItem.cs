@@ -26,22 +26,30 @@ namespace Elite.Menu.Launchers
         {
             try
             {
-                WscriptLauncherMenuItem wscriptMenuItem = (WscriptLauncherMenuItem)menuItem;
-                wscriptMenuItem.wscriptLauncher = this.CovenantClient.ApiLaunchersWscriptGet();
-                WscriptLauncher launcher = wscriptMenuItem.wscriptLauncher;
-                Listener listener = this.CovenantClient.ApiListenersGet().FirstOrDefault(L => L.Id == wscriptMenuItem.wscriptLauncher.ListenerId);
+                menuItem.Refresh();
+                WscriptLauncher launcher = ((WscriptLauncherMenuItem)menuItem).WscriptLauncher;
+                Listener listener = this.CovenantClient.ApiListenersGet().FirstOrDefault(L => L.Id == launcher.ListenerId);
 
                 EliteConsoleMenu menu = new EliteConsoleMenu(EliteConsoleMenu.EliteConsoleMenuType.Parameter, "WscriptLauncher");
                 menu.Rows.Add(new List<string> { "Name:", launcher.Name });
                 menu.Rows.Add(new List<string> { "Description:", launcher.Description });
                 menu.Rows.Add(new List<string> { "ListenerName:", listener == null ? "" : listener.Name });
                 menu.Rows.Add(new List<string> { "CommType:", launcher.CommType.ToString() });
-                menu.Rows.Add(new List<string> { "  SMBPipeName:", launcher.SmbPipeName });
+                if (launcher.CommType == CommunicationType.HTTP)
+                {
+                    menu.Rows.Add(new List<string> { "  ValidateCert:", launcher.ValidateCert.ToString() });
+                    menu.Rows.Add(new List<string> { "  UseCertPinning:", launcher.UseCertPinning.ToString() });
+                }
+                else if (launcher.CommType == CommunicationType.SMB)
+                {
+                    menu.Rows.Add(new List<string> { "  SMBPipeName:", launcher.SmbPipeName });
+                }
                 menu.Rows.Add(new List<string> { "DotNetFramework:", launcher.DotNetFrameworkVersion == DotNetVersion.Net35 ? "v3.5" : "v4.0" });
                 menu.Rows.Add(new List<string> { "ScriptLanguage:", launcher.ScriptLanguage.ToString() });
                 menu.Rows.Add(new List<string> { "Delay:", (launcher.Delay ?? default).ToString() });
-                menu.Rows.Add(new List<string> { "Jitter:", (launcher.Jitter ?? default).ToString() });
+                menu.Rows.Add(new List<string> { "JitterPercent:", (launcher.JitterPercent ?? default).ToString() });
                 menu.Rows.Add(new List<string> { "ConnectAttempts:", (launcher.ConnectAttempts ?? default).ToString() });
+                menu.Rows.Add(new List<string> { "KillDate:", launcher.KillDate.ToString() });
                 menu.Rows.Add(new List<string> { "LauncherString:", launcher.LauncherString });
                 menu.Print();
             }
@@ -65,9 +73,10 @@ namespace Elite.Menu.Launchers
         {
             try
             {
-                WscriptLauncherMenuItem wscriptMenuItem = (WscriptLauncherMenuItem)menuItem;
-                wscriptMenuItem.wscriptLauncher = this.CovenantClient.ApiLaunchersWscriptPost();
-                EliteConsole.PrintFormattedHighlightLine("Generated WscriptLauncher: " + wscriptMenuItem.wscriptLauncher.LauncherString);
+                this.CovenantClient.ApiLaunchersWscriptPost();
+                menuItem.Refresh();
+                WscriptLauncher launcher = ((WscriptLauncherMenuItem)menuItem).WscriptLauncher;
+                EliteConsole.PrintFormattedHighlightLine("Generated WscriptLauncher: " + launcher.LauncherString);
             }
             catch (HttpOperationException e)
             {
@@ -78,7 +87,7 @@ namespace Elite.Menu.Launchers
 
     public class MenuCommandWscriptLauncherCode : MenuCommand
     {
-        public MenuCommandWscriptLauncherCode() : base()
+        public MenuCommandWscriptLauncherCode(CovenantAPI CovenantClient) : base(CovenantClient)
         {
             this.Name = "Code";
             this.Description = "Get the currently generated GruntStager or Scriptlet code.";
@@ -88,7 +97,6 @@ namespace Elite.Menu.Launchers
                     Name = "Type",
                     Values = new List<MenuCommandParameterValue> {
                         new MenuCommandParameterValue { Value = "Scriptlet" },
-                        new MenuCommandParameterValue { Value = "Stager" },
                         new MenuCommandParameterValue { Value = "GruntStager" }
                     }
                 }
@@ -99,33 +107,32 @@ namespace Elite.Menu.Launchers
         {
             try
             {
-                WscriptLauncherMenuItem wscriptMenuItem = (WscriptLauncherMenuItem)menuItem;
                 string[] commands = UserInput.Split(" ");
-                if (commands.Length < 1 || commands.Length > 2 || commands[0].ToLower() != "code")
+                if (commands.Length < 1 || commands.Length > 2 || !commands[0].Equals(this.Name, StringComparison.OrdinalIgnoreCase))
                 {
                     menuItem.PrintInvalidOptionError(UserInput);
                     return;
                 }
-                else if (commands.Length == 2 && (!new List<string> { "stager", "gruntstager", "scriptlet" }.Contains(commands[1].ToLower())))
+                if (commands.Length == 2 && (!new List<string> { "stager", "gruntstager", "scriptlet" }.Contains(commands[1].ToLower())))
                 {
                     EliteConsole.PrintFormattedErrorLine("Type must be one of: \"Stager\"\\\"GruntStager\" or \"Scriptlet\"");
                     menuItem.PrintInvalidOptionError(UserInput);
                     return;
                 }
-                wscriptMenuItem.Refresh();
-                if (wscriptMenuItem.wscriptLauncher.LauncherString == "")
+                WscriptLauncher launcher = ((WscriptLauncherMenuItem)menuItem).WscriptLauncher;
+                if (launcher.LauncherString == "")
                 {
-                    wscriptMenuItem.CovenantClient.ApiLaunchersWscriptPost();
-                    wscriptMenuItem.Refresh();
-                    EliteConsole.PrintFormattedHighlightLine("Generated WscriptLauncher: " + wscriptMenuItem.wscriptLauncher.LauncherString);
+                    this.CovenantClient.ApiLaunchersWscriptPost();
+                    menuItem.Refresh();
+                    EliteConsole.PrintFormattedHighlightLine("Generated WscriptLauncher: " + launcher.LauncherString);
                 }
-                if (commands.Length == 1 || (commands.Length == 2 && (commands[1].ToLower() == "stager" || commands[1].ToLower() == "gruntstager")))
+                if (commands.Length == 1 || (commands.Length == 2 && commands[1].Equals("gruntstager", StringComparison.OrdinalIgnoreCase)))
                 {
-                    EliteConsole.PrintInfoLine(wscriptMenuItem.wscriptLauncher.StagerCode);
+                    EliteConsole.PrintInfoLine(launcher.StagerCode);
                 }
-                else if (commands.Length == 2 && commands[1].ToLower() == "scriptlet")
+                else if (commands.Length == 2 && commands[1].Equals("scriptlet", StringComparison.OrdinalIgnoreCase))
                 {
-                    EliteConsole.PrintInfoLine(wscriptMenuItem.wscriptLauncher.DiskCode);
+                    EliteConsole.PrintInfoLine(launcher.DiskCode);
                 }
             }
             catch (HttpOperationException e)
@@ -143,10 +150,7 @@ namespace Elite.Menu.Launchers
             this.Description = "Host a WscriptLauncher on an HTTP Listener";
             this.Parameters = new List<MenuCommandParameter>
             {
-                new MenuCommandParameter {
-                    Name = "Path",
-                    Values = new MenuCommandParameterValuesFromFilePath(Common.EliteDataFolder)
-                }
+                new MenuCommandParameter { Name = "Path" }
             };
         }
 
@@ -154,15 +158,16 @@ namespace Elite.Menu.Launchers
         {
             try
             {
-                WscriptLauncherMenuItem wscriptMenuItem = (WscriptLauncherMenuItem)menuItem;
                 string[] commands = UserInput.Split(" ");
-                if (commands.Length != 2 || commands[0].ToLower() != "host")
+                if (commands.Length != 2 || !commands[0].Equals(this.Name, StringComparison.OrdinalIgnoreCase))
                 {
                     menuItem.PrintInvalidOptionError(UserInput);
                     return;
                 }
-                wscriptMenuItem.wscriptLauncher = this.CovenantClient.ApiLaunchersWscriptPost();
-                HttpListener listener = this.CovenantClient.ApiListenersHttpByIdGet(wscriptMenuItem.wscriptLauncher.ListenerId ?? default);
+                this.CovenantClient.ApiLaunchersWscriptPost();
+                menuItem.Refresh();
+                WscriptLauncher launcher = ((WscriptLauncherMenuItem)menuItem).WscriptLauncher;
+                HttpListener listener = this.CovenantClient.ApiListenersHttpByIdGet(launcher.ListenerId ?? default);
                 if (listener == null)
                 {
                     EliteConsole.PrintFormattedErrorLine("Can only host a file on a valid HttpListener.");
@@ -173,16 +178,16 @@ namespace Elite.Menu.Launchers
                 {
                     ListenerId = listener.Id,
                     Path = commands[1],
-                    Content = Convert.ToBase64String(Common.CovenantEncoding.GetBytes(wscriptMenuItem.wscriptLauncher.DiskCode))
+                    Content = Convert.ToBase64String(Common.CovenantEncoding.GetBytes(launcher.DiskCode))
                 };
 
                 fileToHost = this.CovenantClient.ApiListenersByIdHostedfilesPost(listener.Id ?? default, fileToHost);
-                wscriptMenuItem.wscriptLauncher = this.CovenantClient.ApiLaunchersWscriptHostedPost(fileToHost);
+                launcher = this.CovenantClient.ApiLaunchersWscriptHostedPost(fileToHost);
 
                 Uri hostedLocation = new Uri(listener.Url + fileToHost.Path);
                 EliteConsole.PrintFormattedHighlightLine("WscriptLauncher hosted at: " + hostedLocation);
                 EliteConsole.PrintFormattedWarningLine("wscript.exe cannot execute remotely hosted files, the payload must first be written to disk");
-                EliteConsole.PrintFormattedInfoLine("Launcher: " + wscriptMenuItem.wscriptLauncher.LauncherString);
+                EliteConsole.PrintFormattedInfoLine("Launcher: " + launcher.LauncherString);
             }
             catch (HttpOperationException e)
             {
@@ -193,15 +198,12 @@ namespace Elite.Menu.Launchers
 
     public class MenuCommandWscriptLauncherWriteFile : MenuCommand
     {
-        public MenuCommandWscriptLauncherWriteFile()
+        public MenuCommandWscriptLauncherWriteFile(CovenantAPI CovenantClient) : base(CovenantClient)
         {
             this.Name = "Write";
             this.Description = "Write hta to a file";
             this.Parameters = new List<MenuCommandParameter> {
-                new MenuCommandParameter {
-                    Name = "Output File",
-                    Values = new MenuCommandParameterValuesFromFilePath(Common.EliteDataFolder)
-                }
+                new MenuCommandParameter { Name = "Output File" }
             };
         }
 
@@ -209,26 +211,24 @@ namespace Elite.Menu.Launchers
         {
             try
             {
-                WscriptLauncherMenuItem wscriptLauncherMenuItem = ((WscriptLauncherMenuItem)menuItem);
                 string[] commands = UserInput.Split(" ");
-                if (commands.Length != 2 || commands[0].ToLower() != "write")
+                if (commands.Length != 2 || !commands[0].Equals(this.Name, StringComparison.OrdinalIgnoreCase))
                 {
                     menuItem.PrintInvalidOptionError(UserInput);
+                    return;
                 }
-                else
+                menuItem.Refresh();
+                WscriptLauncher launcher = ((WscriptLauncherMenuItem)menuItem).WscriptLauncher;
+                if (launcher.LauncherString == "")
                 {
-                    wscriptLauncherMenuItem.Refresh();
-                    if (wscriptLauncherMenuItem.wscriptLauncher.LauncherString == "")
-                    {
-                        wscriptLauncherMenuItem.CovenantClient.ApiLaunchersBinaryPost();
-                        wscriptLauncherMenuItem.Refresh();
-                        EliteConsole.PrintFormattedHighlightLine("Generated WscriptLauncher: " + wscriptLauncherMenuItem.wscriptLauncher.LauncherString);
-                    }
-
-                    string OutputFilePath = Common.EliteDataFolder + String.Concat(commands[1].Split(System.IO.Path.GetInvalidFileNameChars()));
-                    System.IO.File.WriteAllText(OutputFilePath, wscriptLauncherMenuItem.wscriptLauncher.DiskCode);
-                    EliteConsole.PrintFormattedHighlightLine("Wrote WscriptLauncher to: \"" + OutputFilePath + "\"");
+                    this.CovenantClient.ApiLaunchersBinaryPost();
+                    menuItem.Refresh();
+                    EliteConsole.PrintFormattedHighlightLine("Generated WscriptLauncher: " + launcher.LauncherString);
                 }
+
+                string OutputFilePath = Common.EliteDataFolder + String.Concat(commands[1].Split(System.IO.Path.GetInvalidFileNameChars()));
+                System.IO.File.WriteAllText(OutputFilePath, launcher.DiskCode);
+                EliteConsole.PrintFormattedHighlightLine("Wrote WscriptLauncher to: \"" + OutputFilePath + "\"");
             }
             catch (HttpOperationException e)
             {
@@ -249,17 +249,14 @@ namespace Elite.Menu.Launchers
                     new MenuCommandParameter {
                         Name = "Option",
                         Values = new List<MenuCommandParameterValue> {
-                            new MenuCommandParameterValue {
-                                Value = "ListenerName",
-                                NextValueSuggestions = this.CovenantClient.ApiListenersGet()
-                                                .Where(L => L.Status == ListenerStatus.Active)
-                                                .Select(L => L.Name).ToList()
-                            },
+                            new MenuCommandParameterValue { Value = "ListenerName" },
                             new MenuCommandParameterValue {
                                 Value = "CommType",
                                 NextValueSuggestions = new List<string> { "HTTP", "SMB" }
                             },
                             new MenuCommandParameterValue { Value = "SMBPipeName" },
+                            new MenuCommandParameterValue { Value = "ValidateCert" },
+                            new MenuCommandParameterValue { Value = "UseCertPinning" },
                             new MenuCommandParameterValue {
                                 Value = "DotNetFrameworkVersion",
                                 NextValueSuggestions = new List<string> { "net35", "net40" }
@@ -269,8 +266,9 @@ namespace Elite.Menu.Launchers
                                 NextValueSuggestions = new List<string> { "JScript", "VBScript" }
                             },
                             new MenuCommandParameterValue { Value = "Delay" },
-                            new MenuCommandParameterValue { Value = "Jitter" },
+                            new MenuCommandParameterValue { Value = "JitterPercent" },
                             new MenuCommandParameterValue { Value = "ConnectAttempts" },
+                            new MenuCommandParameterValue { Value = "KillDate" },
                             new MenuCommandParameterValue { Value = "LauncherString" }
                         }
                     },
@@ -283,20 +281,20 @@ namespace Elite.Menu.Launchers
             }
         }
 
-        public override void Command(MenuItem menuItem, string UserInput)
+        public override async void Command(MenuItem menuItem, string UserInput)
         {
             try
             {
-                WscriptLauncher wscriptLauncher = ((WscriptLauncherMenuItem)menuItem).wscriptLauncher;
-                string[] commands = UserInput.Split(" ");
-                if (commands.Length < 3 || commands[0].ToLower() != "set")
+                List<string> commands = Utilities.ParseParameters(UserInput);
+                if (commands.Count() != 3 || !commands[0].Equals(this.Name, StringComparison.OrdinalIgnoreCase))
                 {
                     menuItem.PrintInvalidOptionError(UserInput);
                     return;
                 }
-                else if (this.Parameters.FirstOrDefault(P => P.Name == "Option").Values.Select(V => V.Value.ToLower()).Contains(commands[1].ToLower()))
+                WscriptLauncher launcher = ((WscriptLauncherMenuItem)menuItem).WscriptLauncher;
+                if (this.Parameters.FirstOrDefault(P => P.Name == "Option").Values.Select(V => V.Value.ToLower()).Contains(commands[1].ToLower()))
                 {
-                    if (commands[1].ToLower() == "listenername")
+                    if (commands[1].Equals("listenername", StringComparison.OrdinalIgnoreCase))
                     {
                         Listener listener = this.CovenantClient.ApiListenersGet().FirstOrDefault(L => L.Name == commands[2]);
                         if (listener == null || listener.Name != commands[2])
@@ -305,37 +303,17 @@ namespace Elite.Menu.Launchers
                             menuItem.PrintInvalidOptionError(UserInput);
                             return;
                         }
-                        else
-                        {
-                            wscriptLauncher.ListenerId = listener.Id;
-                        }
+                        launcher.ListenerId = listener.Id;
                     }
-                    else if (commands[1].ToLower() == "scriptlanguage")
+                    else if (commands[1].Equals("dotnetframeworkversion", StringComparison.OrdinalIgnoreCase))
                     {
-                        if (commands[2].ToLower().StartsWith("js"))
+                        if (commands[2].Contains("35", StringComparison.OrdinalIgnoreCase) || commands[2].Contains("3.5", StringComparison.OrdinalIgnoreCase))
                         {
-                            wscriptLauncher.ScriptLanguage = ScriptingLanguage.JScript;
+                            launcher.DotNetFrameworkVersion = DotNetVersion.Net35;
                         }
-                        else if (commands[2].ToLower().StartsWith("vb"))
+                        else if (commands[2].Contains("40", StringComparison.OrdinalIgnoreCase) || commands[2].Contains("4.0", StringComparison.OrdinalIgnoreCase))
                         {
-                            wscriptLauncher.ScriptLanguage = ScriptingLanguage.VBScript;
-                        }
-                        else
-                        {
-                            EliteConsole.PrintFormattedErrorLine("Invalid ScriptLanguage \"" + commands[2] + "\". Valid options are: JScript, VBScript");
-                            menuItem.PrintInvalidOptionError(UserInput);
-                            return;
-                        }
-                    }
-                    else if (commands[1].ToLower() == "dotnetframeworkversion")
-                    {
-                        if (commands[2].ToLower().Contains("35") || commands[2].ToLower().Contains("3.5"))
-                        {
-                            wscriptLauncher.DotNetFrameworkVersion = DotNetVersion.Net35;
-                        }
-                        else if (commands[2].ToLower().Contains("40") || commands[2].ToLower().Contains("4.0"))
-                        {
-                            wscriptLauncher.DotNetFrameworkVersion = DotNetVersion.Net40;
+                            launcher.DotNetFrameworkVersion = DotNetVersion.Net40;
                         }
                         else
                         {
@@ -344,41 +322,89 @@ namespace Elite.Menu.Launchers
                             return;
                         }
                     }
-                    else if (commands[1].ToLower() == "commtype")
+                    else if (commands[1].Equals("scriptlanguage", StringComparison.OrdinalIgnoreCase))
                     {
-                        if (commands[2].ToLower() == "smb")
+                        if (commands[2].StartsWith("js", StringComparison.OrdinalIgnoreCase))
                         {
-                            wscriptLauncher.CommType = CommunicationType.SMB;
+                            launcher.ScriptLanguage = ScriptingLanguage.JScript;
+                        }
+                        else if (commands[2].StartsWith("vb", StringComparison.OrdinalIgnoreCase))
+                        {
+                            launcher.ScriptLanguage = ScriptingLanguage.VBScript;
                         }
                         else
                         {
-                            wscriptLauncher.CommType = CommunicationType.HTTP;
+                            EliteConsole.PrintFormattedErrorLine("Invalid ScriptLanguage \"" + commands[2] + "\". Valid options are: JScript, VBScript");
+                            menuItem.PrintInvalidOptionError(UserInput);
+                            return;
                         }
                     }
-                    else if (commands[1].ToLower() == "smbpipename")
+                    else if (commands[1].Equals("commtype", StringComparison.OrdinalIgnoreCase))
                     {
-                        wscriptLauncher.SmbPipeName = commands[2];
+                        if (commands[2].Equals("smb", StringComparison.OrdinalIgnoreCase))
+                        {
+                            launcher.CommType = CommunicationType.SMB;
+                        }
+                        else
+                        {
+                            launcher.CommType = CommunicationType.HTTP;
+                        }
                     }
-                    else if (commands[1].ToLower() == "delay")
+                    else if (commands[1].Equals("validatecert", StringComparison.OrdinalIgnoreCase))
+                    {
+                        bool parsed = bool.TryParse(commands[2], out bool validate);
+                        if (parsed)
+                        {
+                            launcher.ValidateCert = validate;
+                        }
+                        else
+                        {
+                            menuItem.PrintInvalidOptionError(UserInput);
+                            return;
+                        }
+                    }
+                    else if (commands[1].Equals("usecertpinning", StringComparison.OrdinalIgnoreCase))
+                    {
+                        bool parsed = bool.TryParse(commands[2], out bool pin);
+                        if (parsed)
+                        {
+                            launcher.UseCertPinning = pin;
+                        }
+                        else
+                        {
+                            menuItem.PrintInvalidOptionError(UserInput);
+                            return;
+                        }
+                    }
+                    else if (commands[1].Equals("smbpipename", StringComparison.OrdinalIgnoreCase))
+                    {
+                        launcher.SmbPipeName = commands[2];
+                    }
+                    else if (commands[1].Equals("delay", StringComparison.OrdinalIgnoreCase))
                     {
                         int.TryParse(commands[2], out int n);
-                        wscriptLauncher.Delay = n;
+                        launcher.Delay = n;
                     }
-                    else if (commands[1].ToLower() == "jitter")
+                    else if (commands[1].Equals("jitterpercent", StringComparison.OrdinalIgnoreCase))
                     {
                         int.TryParse(commands[2], out int n);
-                        wscriptLauncher.Jitter = n;
+                        launcher.JitterPercent = n;
                     }
-                    else if (commands[1].ToLower() == "connectattempts")
+                    else if (commands[1].Equals("connectattempts", StringComparison.OrdinalIgnoreCase))
                     {
                         int.TryParse(commands[2], out int n);
-                        wscriptLauncher.ConnectAttempts = n;
+                        launcher.ConnectAttempts = n;
                     }
-                    else if (commands[1].ToLower() == "launcherstring")
+                    else if (commands[1].Equals("killdate", StringComparison.OrdinalIgnoreCase))
                     {
-                        wscriptLauncher.LauncherString = commands[2];
+                        DateTime.TryParse(commands[2], out DateTime result);
+                        launcher.KillDate = result;
                     }
-                    CovenantAPIExtensions.ApiLaunchersWscriptPut(this.CovenantClient, wscriptLauncher);
+                    else if (commands[1].Equals("launcherstring", StringComparison.OrdinalIgnoreCase))
+                    {
+                        launcher.LauncherString = commands[2];
+                    }
+                    await this.CovenantClient.ApiLaunchersWscriptPutAsync(launcher);
                 }
                 else
                 {
@@ -394,26 +420,24 @@ namespace Elite.Menu.Launchers
 
     public class WscriptLauncherMenuItem : MenuItem
     {
-        public WscriptLauncher wscriptLauncher { get; set; }
+        public WscriptLauncher WscriptLauncher { get; set; }
 
 		public WscriptLauncherMenuItem(CovenantAPI CovenantClient) : base(CovenantClient)
         {
             try
             {
-                this.wscriptLauncher = CovenantClient.ApiLaunchersWscriptGet();
-                this.MenuTitle = wscriptLauncher.Name;
-                this.MenuDescription = wscriptLauncher.Description;
+                this.WscriptLauncher = CovenantClient.ApiLaunchersWscriptGet();
+                this.MenuTitle = WscriptLauncher.Name;
+                this.MenuDescription = WscriptLauncher.Description;
 
                 this.AdditionalOptions.Add(new MenuCommandWscriptLauncherShow(CovenantClient));
                 this.AdditionalOptions.Add(new MenuCommandWscriptLauncherGenerate(CovenantClient));
-                this.AdditionalOptions.Add(new MenuCommandWscriptLauncherCode());
+                this.AdditionalOptions.Add(new MenuCommandWscriptLauncherCode(CovenantClient));
                 this.AdditionalOptions.Add(new MenuCommandWscriptLauncherHost(CovenantClient));
-                this.AdditionalOptions.Add(new MenuCommandWscriptLauncherWriteFile());
+                this.AdditionalOptions.Add(new MenuCommandWscriptLauncherWriteFile(CovenantClient));
                 var setCommand = new MenuCommandWscriptLauncherSet(CovenantClient);
                 this.AdditionalOptions.Add(setCommand);
                 this.AdditionalOptions.Add(new MenuCommandGenericUnset(setCommand.Parameters.FirstOrDefault(P => P.Name == "Option").Values));
-
-                this.Refresh();
             }
             catch (HttpOperationException e)
             {
@@ -430,13 +454,20 @@ namespace Elite.Menu.Launchers
         {
             try
             {
-                this.wscriptLauncher = this.CovenantClient.ApiLaunchersWscriptGet();
-                this.AdditionalOptions.FirstOrDefault(AO => AO.Name.ToLower() == "set").Parameters
-                    .FirstOrDefault(P => P.Name.ToLower() == "option").Values
-                    .FirstOrDefault(V => V.Value.ToLower() == "listenername")
-                    .NextValueSuggestions = this.CovenantClient.ApiListenersGet()
-                                                .Where(L => L.Status == ListenerStatus.Active)
-                                                .Select(L => L.Name).ToList();
+                this.WscriptLauncher = this.CovenantClient.ApiLaunchersWscriptGet();
+
+                this.AdditionalOptions.FirstOrDefault(AO => AO.Name == "Set").Parameters
+                    .FirstOrDefault(P => P.Name == "Option").Values
+                        .FirstOrDefault(V => V.Value == "ListenerName")
+                        .NextValueSuggestions = this.CovenantClient.ApiListenersGet()
+                            .Where(L => L.Status == ListenerStatus.Active)
+                            .Select(L => L.Name)
+                            .ToList();
+
+                var filevalues = new MenuCommandParameterValuesFromFilePath(Common.EliteDataFolder);
+                this.AdditionalOptions.FirstOrDefault(AO => AO.Name == "Write").Parameters
+                    .FirstOrDefault().Values = filevalues;
+
                 this.SetupMenuAutoComplete();
             }
             catch (HttpOperationException e)

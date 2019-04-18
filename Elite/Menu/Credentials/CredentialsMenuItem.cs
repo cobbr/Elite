@@ -90,19 +90,14 @@ namespace Elite.Menu.Indicators
 
     public class MenuCommandCredentialsTicket : MenuCommand
     {
-        public MenuCommandCredentialsTicket(CovenantAPI CovenantClient) : base(CovenantClient)
+        public MenuCommandCredentialsTicket() : base()
         {
             this.Name = "Ticket";
             this.Description = "Display full Base64EncodedTicket";
             try
             {
                 this.Parameters = new List<MenuCommandParameter> {
-                    new MenuCommandParameter {
-                        Name = "ID",
-                        Values = CovenantClient.ApiCredentialsTicketsGet()
-                                    .Select(T => new MenuCommandParameterValue { Value = T.Id.ToString() })
-                                    .ToList()
-                    }
+                    new MenuCommandParameter { Name = "ID" }
                 };
             }
             catch (HttpOperationException e)
@@ -113,7 +108,6 @@ namespace Elite.Menu.Indicators
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
-            menuItem.Refresh();
             CredentialsMenuItem credentialsMenuItem = (CredentialsMenuItem)menuItem;
             List<string> commands = Utilities.ParseParameters(UserInput);
             if (commands.Count() != 2)
@@ -128,13 +122,11 @@ namespace Elite.Menu.Indicators
             }
             else
             {
-                EliteConsole.PrintFormattedInfoLine("Ticket ID: " + commands[1] + " Base64EncodedTicket:");
-                EliteConsole.PrintInfoLine(credentialsMenuItem.TicketCredentials.FirstOrDefault(T => T.Id.ToString() == commands[1].ToLower()).Ticket);
+                EliteConsole.PrintFormattedInfoLine($"Ticket ID: {commands[1]} Base64EncodedTicket:");
+                EliteConsole.PrintInfoLine(credentialsMenuItem.TicketCredentials.FirstOrDefault(T => T.Id.ToString().Equals(commands[1], StringComparison.OrdinalIgnoreCase)).Ticket);
             }
-
         }
     }
-
 
     public sealed class CredentialsMenuItem : MenuItem
     {
@@ -149,8 +141,7 @@ namespace Elite.Menu.Indicators
             this.MenuDescription = "Displays list of credentials.";
 
             this.AdditionalOptions.Add(new MenuCommandCredentialsShow());
-            this.AdditionalOptions.Add(new MenuCommandCredentialsTicket(this.CovenantClient));
-            this.Refresh();
+            this.AdditionalOptions.Add(new MenuCommandCredentialsTicket());
         }
 
         public override bool ValidateMenuParameters(string[] parameters = null, bool forwardEntrance = true)
@@ -172,6 +163,12 @@ namespace Elite.Menu.Indicators
                 this.PasswordCredentials = this.CovenantClient.ApiCredentialsPasswordsGet().ToList();
                 this.HashCredentials = this.CovenantClient.ApiCredentialsHashesGet().ToList();
                 this.TicketCredentials = this.CovenantClient.ApiCredentialsTicketsGet().ToList();
+
+                this.AdditionalOptions.FirstOrDefault(O => O.Name == "Ticket").Parameters
+                    .FirstOrDefault(P => P.Name == "ID").Values = this.TicketCredentials
+                    .Select(T => new MenuCommandParameterValue { Value = T.Id.ToString() })
+                    .ToList();
+
             }
             catch (HttpOperationException e)
             {

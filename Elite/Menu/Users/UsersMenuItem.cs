@@ -26,13 +26,13 @@ namespace Elite.Menu.Users
         {
             try
             {
-                UsersMenuItem usersMenuItem = (UsersMenuItem)menuItem;
-                usersMenuItem.Refresh();
+                menuItem.Refresh();
+                List<CovenantUser> Users = ((UsersMenuItem)menuItem).Users;
                 EliteConsoleMenu menu = new EliteConsoleMenu(EliteConsoleMenu.EliteConsoleMenuType.List, "Users");
                 menu.Columns.Add("Username");
                 menu.Columns.Add("Roles");
                 menu.Columns.Add("Status");
-                usersMenuItem.Users.ForEach(U =>
+                Users.ForEach(U =>
                 {
                     var userRoles = this.CovenantClient.ApiUsersByIdRolesGet(U.Id).ToList();
                     List<string> roles = new List<string>();
@@ -79,10 +79,8 @@ namespace Elite.Menu.Users
         {
             try
             {
-                UsersMenuItem usersMenuItem = (UsersMenuItem)menuItem;
-                usersMenuItem.Refresh();
                 string[] commands = UserInput.Split(" ");
-                if (commands.Length < 3 || commands.Length > 4 || commands[0].ToLower() != "create")
+                if (commands.Length < 3 || commands.Length > 4 || !commands[0].Equals(this.Name, StringComparison.OrdinalIgnoreCase))
                 {
                     menuItem.PrintInvalidOptionError(UserInput);
                     EliteConsole.PrintFormattedErrorLine("Usage: Create <username> <password> [<roles>]");
@@ -128,22 +126,20 @@ namespace Elite.Menu.Users
         {
             try
             {
-                UsersMenuItem usersMenuItem = (UsersMenuItem)menuItem;
-                usersMenuItem.Refresh();
                 string[] commands = UserInput.Split(" ");
-                if (commands.Length != 2 || commands[0].ToLower() != "delete")
+                if (commands.Length != 2 || !commands[0].Equals(this.Name, StringComparison.OrdinalIgnoreCase))
                 {
                     menuItem.PrintInvalidOptionError(UserInput);
                     EliteConsole.PrintFormattedErrorLine("Usage: Delete <username>");
                     return;
                 }
-
-                CovenantUser user = usersMenuItem.Users.FirstOrDefault(U => U.UserName == commands[1]);
+                List<CovenantUser> Users = ((UsersMenuItem)menuItem).Users;
+                CovenantUser user = Users.FirstOrDefault(U => U.UserName == commands[1]);
                 if (user != null)
                 {
                     EliteConsole.PrintFormattedWarning("Delete user: \"" + commands[1] + "\"? [y/N] ");
                     string input = EliteConsole.Read();
-                    if (input.ToLower().StartsWith("y"))
+                    if (input.StartsWith("y", StringComparison.OrdinalIgnoreCase))
                     {
                         this.CovenantClient.ApiUsersByIdDelete(user.Id);
                     }
@@ -173,11 +169,8 @@ namespace Elite.Menu.Users
         {
             try
             {
-                UsersMenuItem usersMenuItem = (UsersMenuItem)menuItem;
-                usersMenuItem.Refresh();
-
                 string[] commands = UserInput.Split(" ");
-                if (commands.Length != 1 || commands[0].ToLower() != "password")
+                if (commands.Length != 1 || !commands[0].Equals(this.Name, StringComparison.OrdinalIgnoreCase))
                 {
                     menuItem.PrintInvalidOptionError(UserInput);
                     EliteConsole.PrintFormattedErrorLine("Usage: Create <username> <password> [<roles>]");
@@ -213,7 +206,6 @@ namespace Elite.Menu.Users
 			this.AdditionalOptions.Add(new MenuCommandUsersCreate(CovenantClient));
             this.AdditionalOptions.Add(new MenuCommandUsersDelete(CovenantClient));
             this.AdditionalOptions.Add(new MenuCommandUsersPassword(CovenantClient));
-            this.Refresh();
         }
 
         public override void Refresh()

@@ -27,20 +27,22 @@ namespace Elite.Menu.Listeners
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
-            HTTPListenerMenuItem httpListenerMenuItem = (HTTPListenerMenuItem)menuItem;
-            httpListenerMenuItem.Refresh();
+            menuItem.Refresh();
+            HttpListener HttpListener = ((HTTPListenerMenuItem)menuItem).HttpListener;
+            string SSLCertPath = ((HTTPListenerMenuItem)menuItem).SSLCertPath;
+
             EliteConsoleMenu menu = new EliteConsoleMenu(EliteConsoleMenu.EliteConsoleMenuType.Parameter, "HTTP Listener");
-            menu.Rows.Add(new List<string> { "Name:", httpListenerMenuItem.httpListener.Name });
-            menu.Rows.Add(new List<string> { "Description:", httpListenerMenuItem.httpListener.Description });
-            menu.Rows.Add(new List<string> { "URL:", httpListenerMenuItem.httpListener.Url });
-            menu.Rows.Add(new List<string> { "  ConnectAddress:", httpListenerMenuItem.httpListener.ConnectAddress });
-            menu.Rows.Add(new List<string> { "  BindAddress:", httpListenerMenuItem.httpListener.BindAddress });
-            menu.Rows.Add(new List<string> { "  BindPort:", httpListenerMenuItem.httpListener.BindPort.ToString() });
-            menu.Rows.Add(new List<string> { "  UseSSL:", (httpListenerMenuItem.httpListener.UseSSL ?? default ) ? "True" : "False" });
-            menu.Rows.Add(new List<string> { "SSLCertPath:", httpListenerMenuItem.SSLCertPath });
-            menu.Rows.Add(new List<string> { "SSLCertPassword:", httpListenerMenuItem.httpListener.SslCertificatePassword });
-            menu.Rows.Add(new List<string> { "SSLCertHash:", httpListenerMenuItem.httpListener.SslCertHash });
-            menu.Rows.Add(new List<string> { "HttpProfile:", httpListenerMenuItem.httpProfile.Name });
+            menu.Rows.Add(new List<string> { "Name:", HttpListener.Name });
+            menu.Rows.Add(new List<string> { "Description:", HttpListener.Description });
+            menu.Rows.Add(new List<string> { "URL:", HttpListener.Url });
+            menu.Rows.Add(new List<string> { "  ConnectAddress:", HttpListener.ConnectAddress });
+            menu.Rows.Add(new List<string> { "  BindAddress:", HttpListener.BindAddress });
+            menu.Rows.Add(new List<string> { "  BindPort:", HttpListener.BindPort.ToString() });
+            menu.Rows.Add(new List<string> { "  UseSSL:", (HttpListener.UseSSL ?? default ) ? "True" : "False" });
+            menu.Rows.Add(new List<string> { "SSLCertPath:", SSLCertPath });
+            menu.Rows.Add(new List<string> { "SSLCertPassword:", HttpListener.SslCertificatePassword });
+            menu.Rows.Add(new List<string> { "SSLCertHash:", HttpListener.SslCertHash });
+            menu.Rows.Add(new List<string> { "HttpProfile:", HttpListener.Name });
             menu.Print();
         }
     }
@@ -54,25 +56,35 @@ namespace Elite.Menu.Listeners
             this.Parameters = new List<MenuCommandParameter>();
         }
 
-        public override void Command(MenuItem menuItem, string UserInput)
+        public override async void Command(MenuItem menuItem, string UserInput)
         {
             try
             {
-                HTTPListenerMenuItem httpListenerMenuItem = (HTTPListenerMenuItem)menuItem;
-                // TODO: error if http lsitener already on this port
-                if ((httpListenerMenuItem.httpListener.UseSSL ?? default) && (httpListenerMenuItem.httpListener.SslCertHash == "" || httpListenerMenuItem.httpListener.SslCertificate == ""))
+                string[] commands = UserInput.Split(" ");
+                if (commands.Length != 1 || !commands[0].Equals(this.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    menuItem.PrintInvalidOptionError(UserInput);
+                    return;
+                }
+                HttpListener HttpListener = ((HTTPListenerMenuItem)menuItem).HttpListener;
+                if ((HttpListener.UseSSL ?? default) && (string.IsNullOrEmpty(HttpListener.SslCertHash) || string.IsNullOrEmpty(HttpListener.SslCertificate)))
                 {
                     EliteConsole.PrintWarning("No SSLCertificate specified. Would you like to generate and use a self-signed certificate? [y/N] ");
                     string input = EliteConsole.Read();
-                    if (input.ToLower().StartsWith("y"))
+                    if (input.StartsWith("y", StringComparison.OrdinalIgnoreCase))
                     {
-                        X509Certificate2 certificate = Utilities.CreateSelfSignedCertificate(httpListenerMenuItem.httpListener.BindAddress);
+                        X509Certificate2 certificate = Utilities.CreateSelfSignedCertificate(HttpListener.BindAddress);
 
-                        string autopath = "httplistener-" + httpListenerMenuItem.httpListener.Id + "-certificate.pfx";
-                        File.WriteAllBytes(Path.Combine(Common.EliteDataFolder, autopath),
-                                           certificate.Export(X509ContentType.Pfx, httpListenerMenuItem.httpListener.SslCertificatePassword));
-                        EliteConsole.PrintFormattedInfoLine("Certificate written to: " + autopath);
-                        httpListenerMenuItem.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(httpListenerMenuItem, "Set SSLCertPath " + autopath);
+                        string autopath = "httplistener-" + HttpListener.Id + "-certificate.pfx";
+                        File.WriteAllBytes(
+                            Path.Combine(Common.EliteDataFolder, autopath),
+                            certificate.Export(X509ContentType.Pfx, HttpListener.SslCertificatePassword)
+                        );
+                        EliteConsole.PrintFormattedHighlightLine("Certificate written to: " + autopath);
+                        EliteConsole.PrintFormattedWarningLine("(Be sure to disable certificate validation on Launchers/Grunts using this self-signed certificate)");
+                        menuItem.AdditionalOptions.FirstOrDefault(O => O.Name == "Set").Command(menuItem, "Set SSLCertPath " + autopath);
+                        menuItem.Refresh();
+                        HttpListener = ((HTTPListenerMenuItem)menuItem).HttpListener;
                     }
                     else
                     {
@@ -80,12 +92,10 @@ namespace Elite.Menu.Listeners
                         return;
                     }
                 }
-                httpListenerMenuItem.Refresh();
-                httpListenerMenuItem.httpListener.Status = ListenerStatus.Active;
-                httpListenerMenuItem.httpListener = this.CovenantClient.ApiListenersHttpPut(httpListenerMenuItem.httpListener);
+                HttpListener.Status = ListenerStatus.Active;
+                await this.CovenantClient.ApiListenersHttpPutAsync(HttpListener);
 
-                httpListenerMenuItem.RefreshHTTPTemplate();
-                httpListenerMenuItem.Refresh();
+                ((HTTPListenerMenuItem)menuItem).RefreshHTTPTemplate();
             }
             catch (HttpOperationException e)
             {
@@ -126,7 +136,7 @@ namespace Elite.Menu.Listeners
                             Value = "UseSSL",
                             NextValueSuggestions = new List<string> { "True", "False" }
                         },
-                        new MenuCommandParameterValue { Value = "SSLCertPath", NextValueSuggestions = Utilities.GetFilesForPath(Common.EliteDataFolder) },
+                        new MenuCommandParameterValue { Value = "SSLCertPath" },
                         new MenuCommandParameterValue { Value = "SSLCertPassword" },
                         new MenuCommandParameterValue { Value = "HttpProfile" }
                     }
@@ -135,23 +145,24 @@ namespace Elite.Menu.Listeners
             };
         }
 
-        public override void Command(MenuItem menuItem, string UserInput)
+        public override async void Command(MenuItem menuItem, string UserInput)
         {
             try
             {
-                HttpListener httpListener = ((HTTPListenerMenuItem)menuItem).httpListener;
+                HttpListener httpListener = ((HTTPListenerMenuItem)menuItem).HttpListener;
                 string[] commands = UserInput.Split(" ");
-                if (commands.Length != 3 || commands[0].ToLower() != "set")
+                if (commands.Length != 3 || !commands[0].Equals(this.Name, StringComparison.OrdinalIgnoreCase))
                 {
                     menuItem.PrintInvalidOptionError(UserInput);
+                    return;
                 }
-                else if (this.Parameters.FirstOrDefault(P => P.Name == "Option").Values.Select(V => V.Value.ToLower()).Contains(commands[1].ToLower()))
+                if (this.Parameters.FirstOrDefault(P => P.Name == "Option").Values.Select(V => V.Value).Contains(commands[1], StringComparer.OrdinalIgnoreCase))
                 {
-                    if (commands[1].ToLower() == "name")
+                    if (commands[1].Equals("name", StringComparison.OrdinalIgnoreCase))
                     {
                         httpListener.Name = commands[2];
                     }
-                    else if (commands[1].ToLower() == "url")
+                    else if (commands[1].Equals("url", StringComparison.OrdinalIgnoreCase))
                     {
                         try
                         {
@@ -165,20 +176,21 @@ namespace Elite.Menu.Listeners
                         {
                             EliteConsole.PrintFormattedErrorLine("Specified URL: \"" + commands[2] + "\" is not a valid URI");
                             menuItem.PrintInvalidOptionError(UserInput);
+                            return;
                         }
                     }
-                    else if (commands[1].ToLower() == "connectaddress")
+                    else if (commands[1].Equals("connectaddress", StringComparison.OrdinalIgnoreCase))
                     {
                         httpListener.ConnectAddress = commands[2];
                         string scheme = (httpListener.UseSSL ?? default) ? "https://" : "http://";
                         Uri uri = new Uri(scheme + httpListener.ConnectAddress + ":" + httpListener.BindPort);
                         httpListener.Url = uri.ToString();
                     }
-                    else if (commands[1].ToLower() == "bindaddress")
+                    else if (commands[1].Equals("bindaddress", StringComparison.OrdinalIgnoreCase))
                     {
                         httpListener.BindAddress = commands[2];
                     }
-                    else if (commands[1].ToLower() == "bindport")
+                    else if (commands[1].Equals("bindport", StringComparison.OrdinalIgnoreCase))
                     {
                         int.TryParse(commands[2], out int n);
                         httpListener.BindPort = n;
@@ -186,14 +198,14 @@ namespace Elite.Menu.Listeners
                         Uri uri = new Uri(scheme + httpListener.ConnectAddress + ":" + httpListener.BindPort);
                         httpListener.Url = uri.ToString();
                     }
-                    else if (commands[1].ToLower() == "usessl")
+                    else if (commands[1].Equals("usessl", StringComparison.OrdinalIgnoreCase))
                     {
-                        httpListener.UseSSL = commands[2].ToLower().StartsWith('t');
+                        httpListener.UseSSL = commands[2].StartsWith("t", StringComparison.OrdinalIgnoreCase);
                         string scheme = (httpListener.UseSSL ?? default) ? "https://" : "http://";
                         Uri uri = new Uri(scheme + httpListener.ConnectAddress + ":" + httpListener.BindPort);
                         httpListener.Url = uri.ToString();
                     }
-                    else if (commands[1].ToLower() == "sslcertpath")
+                    else if (commands[1].Equals("sslcertpath", StringComparison.OrdinalIgnoreCase))
                     {
                         string FileName = Path.Combine(Common.EliteDataFolder, commands[2]);
                         if (!File.Exists(FileName))
@@ -206,13 +218,13 @@ namespace Elite.Menu.Listeners
                         httpListener.SslCertificate = Convert.ToBase64String(File.ReadAllBytes(FileName));
                         ((HTTPListenerMenuItem)menuItem).SSLCertPath = FileName;
                     }
-                    else if (commands[1].ToLower() == "sslcertpassword")
+                    else if (commands[1].Equals("sslcertpassword", StringComparison.OrdinalIgnoreCase))
                     {
                         httpListener.SslCertificatePassword = commands[2];
                     }
-                    else if (commands[1].ToLower() == "httpprofile")
+                    else if (commands[1].Equals("httpprofile", StringComparison.OrdinalIgnoreCase))
                     {
-                        HttpProfile profile = this.CovenantClient.ApiProfilesHttpGet().FirstOrDefault(HP => HP.Name == commands[2]);
+                        HttpProfile profile = ((HTTPListenerMenuItem)menuItem).HttpProfiles.FirstOrDefault(HP => HP.Name.Equals(commands[2], StringComparison.OrdinalIgnoreCase));
                         if (profile == null)
                         {
                             menuItem.PrintInvalidOptionError(UserInput);
@@ -221,7 +233,7 @@ namespace Elite.Menu.Listeners
                         }
                         httpListener.ProfileId = profile.Id;
                     }
-                    this.CovenantClient.ApiListenersHttpPut(httpListener);
+                    await this.CovenantClient.ApiListenersHttpPutAsync(httpListener);
                     menuItem.Refresh();
                 }
                 else
@@ -238,40 +250,27 @@ namespace Elite.Menu.Listeners
 
     public sealed class HTTPListenerMenuItem : MenuItem
     {
-        public ListenerType listenerType { get; set; }
-        public HttpListener httpListener { get; set; }
-        public HttpProfile httpProfile { get; set; }
+        public ListenerType ListenerType { get; set; }
+        public HttpListener HttpListener { get; set; }
+        public HttpProfile HttpProfile { get; set; }
+        public List<HttpProfile> HttpProfiles { get; set; }
         public string SSLCertPath { get; set; } = "";
 
 		public HTTPListenerMenuItem(CovenantAPI CovenantClient) : base(CovenantClient)
         {
-            try
-            {
-                this.httpListener = this.CovenantClient.ApiListenersHttpPost(new HttpListener());
-                this.httpProfile = this.CovenantClient.ApiListenersByIdProfileGet(this.httpListener.Id ?? default);
-                this.listenerType = this.CovenantClient.ApiListenersTypesGet().FirstOrDefault(LT => LT.Name == "HTTP");
-                this.MenuTitle = listenerType.Name;
-                this.MenuDescription = listenerType.Description;
-
-                this.AdditionalOptions.Add(new MenuCommandHTTPListenerShow());
-                this.AdditionalOptions.Add(new MenuCommandHTTPListenerStart(this.CovenantClient));
-                var setCommand = new MenuCommandHTTPListenerSet(this.CovenantClient);
-                this.AdditionalOptions.Add(setCommand);
-                this.AdditionalOptions.Add(new MenuCommandGenericUnset(setCommand.Parameters.FirstOrDefault(P => P.Name == "Option").Values));
-
-                this.Refresh();
-            }
-            catch (HttpOperationException e)
-            {
-                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
-            }
+            this.MenuTitle = "HTTP";
+            this.AdditionalOptions.Add(new MenuCommandHTTPListenerShow());
+            this.AdditionalOptions.Add(new MenuCommandHTTPListenerStart(this.CovenantClient));
+            var setCommand = new MenuCommandHTTPListenerSet(this.CovenantClient);
+            this.AdditionalOptions.Add(setCommand);
+            this.AdditionalOptions.Add(new MenuCommandGenericUnset(setCommand.Parameters.FirstOrDefault(P => P.Name == "Option").Values));
         }
 
         public void RefreshHTTPTemplate()
         {
             try
             {
-                this.httpListener = this.CovenantClient.ApiListenersHttpPost(new HttpListener());
+                this.HttpListener = this.CovenantClient.ApiListenersHttpPost(new HttpListener());
             }
             catch (HttpOperationException e)
             {
@@ -290,17 +289,28 @@ namespace Elite.Menu.Listeners
 		{
             try
             {
-                this.httpListener = this.CovenantClient.ApiListenersHttpByIdGet(this.httpListener.Id ?? default);
-                this.listenerType = this.CovenantClient.ApiListenersTypesGet().FirstOrDefault(LT => LT.Name == "HTTP");
-                this.httpProfile = this.CovenantClient.ApiListenersByIdProfileGet(this.httpListener.Id ?? default);
+                this.HttpListener = this.CovenantClient.ApiListenersHttpByIdGet(this.HttpListener.Id ?? default);
+                this.ListenerType = this.CovenantClient.ApiListenersTypesGet().FirstOrDefault(LT => LT.Name == "HTTP");
+                this.HttpProfiles = this.CovenantClient.ApiProfilesHttpGet().ToList();
+                this.HttpProfile = this.HttpProfiles.FirstOrDefault(HP => this.HttpListener.ProfileId == HP.Id);
+
+                this.MenuTitle = this.ListenerType.Name;
+                this.MenuDescription = this.ListenerType.Description;
 
                 List<string> profiles = this.CovenantClient.ApiProfilesHttpGet()
                         .Select(P => P.Name)
                         .ToList();
 
-                this.AdditionalOptions.FirstOrDefault(AO => AO.Name.ToLower() == "set").Parameters
-                                      .FirstOrDefault(P => P.Name.ToLower() == "option").Values
-                                      .FirstOrDefault(V => V.Value.ToLower() == "httpprofile").NextValueSuggestions = profiles;
+                this.AdditionalOptions.FirstOrDefault(AO => AO.Name == "Set").Parameters
+                    .FirstOrDefault(P => P.Name == "Option").Values
+                        .FirstOrDefault(V => V.Value == "HttpProfile")
+                        .NextValueSuggestions = profiles;
+
+                this.AdditionalOptions.FirstOrDefault(AO => AO.Name == "Set").Parameters
+                    .FirstOrDefault(P => P.Name == "Option").Values
+                        .FirstOrDefault(V => V.Value == "SSLCertPath")
+                        .NextValueSuggestions = Utilities.GetFilesForPath(Common.EliteDataFolder);
+
                 this.SetupMenuAutoComplete();
             }
             catch (HttpOperationException e)

@@ -64,7 +64,7 @@ namespace Elite.Menu
                 if (UserInput != "")
                 {
                     MenuItem currentMenuItem = this.GetCurrentMenuItem();
-                    if (UserInput.ToLower() == "back")
+                    if (UserInput.Equals("back", StringComparison.OrdinalIgnoreCase))
                     {
                         if (this.MenuStack.Count > 1) {
                             currentMenuItem.LeavingMenuItem();
@@ -74,11 +74,11 @@ namespace Elite.Menu
                         }
                         else { currentMenuItem.PrintInvalidOptionError(UserInput); }
                     }
-                    else if (UserInput.ToLower() == "exit")
+                    else if (UserInput.Equals("exit", StringComparison.OrdinalIgnoreCase))
                     {
                         EliteConsole.PrintFormattedWarning("Exit Elite console? [y/N] ");
                         string input = EliteConsole.Read();
-                        if (input.ToLower().StartsWith("y"))
+                        if (input.StartsWith("y", StringComparison.OrdinalIgnoreCase))
                         {
                             return false;
                         }

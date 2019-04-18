@@ -192,17 +192,25 @@ namespace Elite
         private static ConsoleColor WarningColor = ConsoleColor.Yellow;
         private static ConsoleColor ErrorColor = ConsoleColor.Red;
 
-        private static string InfoLabel = "[+]";
-        private static string HighlightLabel = "[*]";
-        private static string WarningLabel = "[-]";
-        private static string ErrorLabel = "[!]";
+        private static readonly string InfoLabel = "[+]";
+        private static readonly string HighlightLabel = "[*]";
+        private static readonly string WarningLabel = "[-]";
+        private static readonly string ErrorLabel = "[!]";
         private static readonly object _ConsoleLock = new object();
 
-        private static void PrintColor(string ToPrint = "", ConsoleColor color = ConsoleColor.DarkGray)
+        public static void SetForegroundColor(ConsoleColor color)
         {
             lock (_ConsoleLock)
             {
                 Console.ForegroundColor = color;
+            }
+        }
+
+        private static void PrintColor(string ToPrint = "", ConsoleColor color = ConsoleColor.DarkGray)
+        {
+            SetForegroundColor(color);
+            lock (_ConsoleLock)
+            {
                 Console.Write(ToPrint);
                 Console.ResetColor();
             }
