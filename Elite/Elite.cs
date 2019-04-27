@@ -172,8 +172,7 @@ namespace Elite
                 ServerCertificateCustomValidationCallback = (sender, cert, chain, errors) =>
                 {
                     // Cert Pinning - Trusts only the Covenant API certificate
-                    if (CovenantHash == "" || cert.GetCertHashString() == CovenantHash) { return true; }
-                    return false;
+                    return CovenantHash == "" || cert.GetCertHashString() == CovenantHash;
                 }
             };
 

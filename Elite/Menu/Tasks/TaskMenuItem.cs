@@ -180,13 +180,15 @@ namespace Elite.Menu.Tasks
             this.Task = this.CovenantClient.ApiGrunttasksByIdGet(this.Task.Id ?? default);
             this.Grunt = this.CovenantClient.ApiGruntsByIdGet(this.Grunt.Id ?? default);
 
+            var setoptionparam = this.AdditionalOptions.FirstOrDefault(AO => AO.Name == "Set")
+                                        .Parameters
+                                        .FirstOrDefault(P => P.Name == "Option");
+            setoptionparam.Values = this.Task.Options.Select(TO => new MenuCommandParameterValue { Value = TO.Name }).ToList();
+
             List<string> filePathTasks = new List<string> { "Assembly", "AssemblyReflect", "Upload", "ShellCode" };
             if (filePathTasks.Contains(this.Task.Name))
             {
                 var filepaths = Utilities.GetFilesForPath(Common.EliteDataFolder);
-                var setoptionparam = this.AdditionalOptions.FirstOrDefault(AO => AO.Name == "Set")
-                                        .Parameters
-                                        .FirstOrDefault(P => P.Name == "Option");
                 if (!setoptionparam.Values.Select(V => V.Value).Contains("LocalFilePath"))
                 {
                     setoptionparam.Values.Add(new MenuCommandParameterValue
@@ -199,10 +201,10 @@ namespace Elite.Menu.Tasks
                 {
                     setoptionparam.Values.FirstOrDefault(V => V.Value == "LocalFilePath").NextValueSuggestions = filepaths;
                 }
-                this.AdditionalOptions[AdditionalOptions.IndexOf(
+            }
+            this.AdditionalOptions[AdditionalOptions.IndexOf(
                     this.AdditionalOptions.FirstOrDefault(MC => MC.Name == "Unset")
                 )] = new MenuCommandGenericUnset(setoptionparam.Values);
-            }
 
             this.SetupMenuAutoComplete();
         }
@@ -230,6 +232,9 @@ namespace Elite.Menu.Tasks
                     this.MenuTitle = this.Task.Name;
                 }
                 MenuCommand setCommand = GetTaskMenuSetCommand(this.Task.Name, CovenantClient);
+                setCommand.Parameters.FirstOrDefault(P => P.Name == "Option").Values = this.Task.Options
+                    .Select(TO => new MenuCommandParameterValue { Value = TO.Name })
+                    .ToList();
                 this.AdditionalOptions[AdditionalOptions.IndexOf(
                     this.AdditionalOptions.FirstOrDefault(MC => MC.Name == "Set")
                 )] = setCommand;

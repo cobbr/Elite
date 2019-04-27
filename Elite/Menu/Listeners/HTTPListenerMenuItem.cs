@@ -29,6 +29,7 @@ namespace Elite.Menu.Listeners
         {
             menuItem.Refresh();
             HttpListener HttpListener = ((HTTPListenerMenuItem)menuItem).HttpListener;
+            HttpProfile profile = ((HTTPListenerMenuItem)menuItem).HttpProfile;
             string SSLCertPath = ((HTTPListenerMenuItem)menuItem).SSLCertPath;
 
             EliteConsoleMenu menu = new EliteConsoleMenu(EliteConsoleMenu.EliteConsoleMenuType.Parameter, "HTTP Listener");
@@ -42,7 +43,7 @@ namespace Elite.Menu.Listeners
             menu.Rows.Add(new List<string> { "SSLCertPath:", SSLCertPath });
             menu.Rows.Add(new List<string> { "SSLCertPassword:", HttpListener.SslCertificatePassword });
             menu.Rows.Add(new List<string> { "SSLCertHash:", HttpListener.SslCertHash });
-            menu.Rows.Add(new List<string> { "HttpProfile:", HttpListener.Name });
+            menu.Rows.Add(new List<string> { "HttpProfile:", profile.Name });
             menu.Print();
         }
     }
