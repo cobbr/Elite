@@ -8,166 +8,234 @@ using System.Linq;
 using System.Text;
 using System.Collections.Generic;
 
+using Microsoft.Rest;
+
 using Covenant.API;
 using Covenant.API.Models;
 
 namespace Elite.Menu.Tasks
 {
-    public class MenuCommandAssemblyTaskSet : MenuCommand
+    public class MenuCommandAssemblyTaskSet : MenuCommandTaskSet
     {
-        public MenuCommandAssemblyTaskSet(CovenantAPI CovenantClient) : base(CovenantClient) { }
-        public override void Command(MenuItem menuItem, string UserInput)
+        public MenuCommandAssemblyTaskSet(CovenantAPI CovenantClient) : base(CovenantClient)
         {
-            TaskMenuItem taskMenuItem = ((TaskMenuItem)menuItem);
-            List<string> commands = UserInput.Split(" ").ToList();
-            IList<GruntTaskOption> options = taskMenuItem.task.Options;
-            GruntTaskOption option = options.FirstOrDefault(O => O.Name.ToLower() == commands[1].ToLower());
-            if (commands.Count() < 3 || commands.First().ToLower() != "set")
+            Name = "Set";
+            Description = "Set AssemblyTask option";
+            Parameters = new List<MenuCommandParameter> {
+                new MenuCommandParameter { Name = "Option" },
+                new MenuCommandParameter { Name = "Value" }
+            };
+        }
+
+        public override async void Command(MenuItem menuItem, string UserInput)
+        {
+            try
             {
-                menuItem.PrintInvalidOptionError(UserInput);
-            }
-            else if (commands[1].ToLower() == "AssemblyPath".ToLower())
-            {
-                string FileName = Path.Combine(Common.EliteDataFolder, commands[2]);
-                if (!File.Exists(FileName))
+                List<string> commands = UserInput.Split(" ").ToList();
+                if (commands.Count() < 3 || !commands[0].Equals(this.Name, StringComparison.OrdinalIgnoreCase))
                 {
                     menuItem.PrintInvalidOptionError(UserInput);
-                    EliteConsole.PrintFormattedErrorLine("File: \"" + FileName + "\" does not exist on the local system.");
                     return;
                 }
-                options.FirstOrDefault(O => O.Name == "EncodedAssembly").Value = Convert.ToBase64String(File.ReadAllBytes(FileName));
-                CovenantClient.ApiGruntTasksByIdPut(taskMenuItem.task.Id ?? default, taskMenuItem.task);
+                GruntTask task = ((TaskMenuItem)menuItem).Task;
+                GruntTaskOption option = task.Options.FirstOrDefault(O => O.Name.Equals(commands[1], StringComparison.OrdinalIgnoreCase));
+                if (commands[1].Equals("LocalFilePath", StringComparison.OrdinalIgnoreCase))
+                {
+                    string FileName = Path.Combine(Common.EliteDataFolder, commands[2]);
+                    if (!File.Exists(FileName))
+                    {
+                        menuItem.PrintInvalidOptionError(UserInput);
+                        EliteConsole.PrintFormattedErrorLine("File: \"" + FileName + "\" does not exist on the local system.");
+                        return;
+                    }
+                    task.Options.FirstOrDefault(O => O.Name == "EncodedAssembly").Value = Convert.ToBase64String(File.ReadAllBytes(FileName));
+                    await CovenantClient.ApiGrunttasksPutAsync(task);
+                }
+                else if (option == null)
+                {
+                    menuItem.PrintInvalidOptionError(UserInput);
+                    EliteConsole.PrintFormattedErrorLine("Invalid Set option: \"" + commands[1] + "\"");
+                    return;
+                }
+                else
+                {
+                    option.Value = String.Join(" ", commands.GetRange(2, commands.Count() - 2));
+                    await CovenantClient.ApiGrunttasksPutAsync(task);
+                }
             }
-            else if (option == null)
+            catch (HttpOperationException e)
             {
-                menuItem.PrintInvalidOptionError(UserInput);
-                EliteConsole.PrintFormattedErrorLine("Invalid Set option: \"" + commands[1] + "\"");
-            }
-            else
-            {
-                option.Value = String.Join(" ", commands.GetRange(2, commands.Count() - 2));
-                CovenantClient.ApiGruntTasksByIdPut(taskMenuItem.task.Id ?? default, taskMenuItem.task);
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
             }
         }
     }
 
-    public class MenuCommandAssemblyReflectTaskSet : MenuCommand
+    public class MenuCommandAssemblyReflectTaskSet : MenuCommandTaskSet
     {
-        public MenuCommandAssemblyReflectTaskSet(CovenantAPI CovenantClient) : base(CovenantClient) { }
-        public override void Command(MenuItem menuItem, string UserInput)
+        public MenuCommandAssemblyReflectTaskSet(CovenantAPI CovenantClient) : base(CovenantClient)
         {
-            TaskMenuItem taskMenuItem = ((TaskMenuItem)menuItem);
-            List<string> commands = UserInput.Split(" ").ToList();
-            IList<GruntTaskOption> options = taskMenuItem.task.Options;
-            GruntTaskOption option = options.FirstOrDefault(O => O.Name.ToLower() == commands[1].ToLower());
-            if (commands.Count() < 3 || commands.First().ToLower() != "set")
+            Name = "Set";
+            Description = "Set AssemblyReflectTask option";
+            Parameters = new List<MenuCommandParameter> {
+                new MenuCommandParameter { Name = "Option" },
+                new MenuCommandParameter { Name = "Value" }
+            };
+        }
+        public override async void Command(MenuItem menuItem, string UserInput)
+        {
+            try
             {
-                menuItem.PrintInvalidOptionError(UserInput);
-            }
-            else if (commands[1].ToLower() == "AssemblyPath".ToLower())
-            {
-                string FileName = Path.Combine(Common.EliteDataFolder, commands[2]);
-                if (!File.Exists(FileName))
+                List<string> commands = UserInput.Split(" ").ToList();
+                if (commands.Count() < 3 || !commands[0].Equals(this.Name, StringComparison.OrdinalIgnoreCase))
                 {
                     menuItem.PrintInvalidOptionError(UserInput);
-                    EliteConsole.PrintFormattedErrorLine("File: \"" + FileName + "\" does not exist on the local system.");
                     return;
                 }
-                options.FirstOrDefault(O => O.Name == "EncodedAssembly").Value = Convert.ToBase64String(File.ReadAllBytes(FileName));
-                CovenantClient.ApiGruntTasksByIdPut(taskMenuItem.task.Id ?? default, taskMenuItem.task);
+                GruntTask task = ((TaskMenuItem)menuItem).Task;
+                GruntTaskOption option = task.Options.FirstOrDefault(O => O.Name.Equals(commands[1], StringComparison.OrdinalIgnoreCase));
+                if (commands[1].Equals("LocalFilePath", StringComparison.OrdinalIgnoreCase))
+                {
+                    string FileName = Path.Combine(Common.EliteDataFolder, commands[2]);
+                    if (!File.Exists(FileName))
+                    {
+                        menuItem.PrintInvalidOptionError(UserInput);
+                        EliteConsole.PrintFormattedErrorLine("File: \"" + FileName + "\" does not exist on the local system.");
+                        return;
+                    }
+                    task.Options.FirstOrDefault(O => O.Name == "EncodedAssembly").Value = Convert.ToBase64String(File.ReadAllBytes(FileName));
+                    await CovenantClient.ApiGrunttasksPutAsync(task);
+                }
+                else if (option == null)
+                {
+                    menuItem.PrintInvalidOptionError(UserInput);
+                    EliteConsole.PrintFormattedErrorLine("Invalid Set option: \"" + commands[1] + "\"");
+                    return;
+                }
+                else
+                {
+                    option.Value = String.Join(" ", commands.GetRange(2, commands.Count() - 2));
+                    await CovenantClient.ApiGrunttasksPutAsync(task);
+                }
             }
-            else if (option == null)
+            catch (HttpOperationException e)
             {
-                menuItem.PrintInvalidOptionError(UserInput);
-                EliteConsole.PrintFormattedErrorLine("Invalid Set option: \"" + commands[1] + "\"");
-            }
-            else
-            {
-                option.Value = String.Join(" ", commands.GetRange(2, commands.Count() - 2));
-                CovenantClient.ApiGruntTasksByIdPut(taskMenuItem.task.Id ?? default, taskMenuItem.task);
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
             }
         }
     }
 
-    public class MenuCommandUploadTaskSet : MenuCommand
+    public class MenuCommandUploadTaskSet : MenuCommandTaskSet
     {
-		public MenuCommandUploadTaskSet(CovenantAPI CovenantClient) : base(CovenantClient) { }
-        public override void Command(MenuItem menuItem, string UserInput)
+		public MenuCommandUploadTaskSet(CovenantAPI CovenantClient) : base(CovenantClient)
         {
-            TaskMenuItem taskMenuItem = ((TaskMenuItem)menuItem);
-            List<string> commands = UserInput.Split(" ").ToList();
-            IList<GruntTaskOption> options = taskMenuItem.task.Options;
-            GruntTaskOption option = options.FirstOrDefault(O => O.Name.ToLower() == commands[1].ToLower());
-            if (commands.Count() < 3 || commands.First().ToLower() != "set")
+            Name = "Set";
+            Description = "Set UploadTask option";
+            Parameters = new List<MenuCommandParameter> {
+                new MenuCommandParameter { Name = "Option" },
+                new MenuCommandParameter { Name = "Value" }
+            };
+        }
+        public override async void Command(MenuItem menuItem, string UserInput)
+        {
+            try
             {
-                menuItem.PrintInvalidOptionError(UserInput);
-            }
-            else if (commands[1].ToLower() == "FilePath".ToLower())
-            {
-                string FilePath = Path.Combine(Common.EliteDataFolder, commands[2]);
-				if (!File.Exists(FilePath))
+                List<string> commands = UserInput.Split(" ").ToList();
+                if (commands.Count() < 3 || !commands[0].Equals(this.Name, StringComparison.OrdinalIgnoreCase))
                 {
                     menuItem.PrintInvalidOptionError(UserInput);
-					EliteConsole.PrintFormattedErrorLine("File: \"" + FilePath + "\" does not exist on the local system.");
                     return;
                 }
-				options.FirstOrDefault(O => O.Name == "FileContents").Value = Convert.ToBase64String(File.ReadAllBytes(FilePath));
-				options.FirstOrDefault(O => O.Name == "FileName").Value = Path.GetFileName(FilePath);
-                CovenantClient.ApiGruntTasksByIdPut(taskMenuItem.task.Id ?? default, taskMenuItem.task);
+                GruntTask task = ((TaskMenuItem)menuItem).Task;
+                GruntTaskOption option = task.Options.FirstOrDefault(O => O.Name.Equals(commands[1], StringComparison.OrdinalIgnoreCase));
+                if (commands[1].Equals("LocalFilePath", StringComparison.OrdinalIgnoreCase))
+                {
+                    string FilePath = Path.Combine(Common.EliteDataFolder, commands[2]);
+                    if (!File.Exists(FilePath))
+                    {
+                        menuItem.PrintInvalidOptionError(UserInput);
+                        EliteConsole.PrintFormattedErrorLine("File: \"" + FilePath + "\" does not exist on the local system.");
+                        return;
+                    }
+                    task.Options.FirstOrDefault(O => O.Name == "FileContents").Value = Convert.ToBase64String(File.ReadAllBytes(FilePath));
+                    task.Options.FirstOrDefault(O => O.Name == "FileName").Value = Path.GetFileName(FilePath);
+                    await this.CovenantClient.ApiGrunttasksPutAsync(task);
+                }
+                else if (option == null)
+                {
+                    menuItem.PrintInvalidOptionError(UserInput);
+                    EliteConsole.PrintFormattedErrorLine("Invalid Set option: \"" + commands[1] + "\"");
+                    return;
+                }
+                else
+                {
+                    option.Value = String.Join(" ", commands.GetRange(2, commands.Count() - 2));
+                    await this.CovenantClient.ApiGrunttasksPutAsync(task);
+                }
             }
-            else if (option == null)
+            catch (HttpOperationException e)
             {
-                menuItem.PrintInvalidOptionError(UserInput);
-                EliteConsole.PrintFormattedErrorLine("Invalid Set option: \"" + commands[1] + "\"");
-            }
-            else
-            {
-                option.Value = String.Join(" ", commands.GetRange(2, commands.Count() - 2));
-                CovenantClient.ApiGruntTasksByIdPut(taskMenuItem.task.Id ?? default, taskMenuItem.task);
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
             }
         }
     }
 
-    public class MenuCommandShellCodeTaskSet : MenuCommand
+    public class MenuCommandShellCodeTaskSet : MenuCommandTaskSet
     {
-        public MenuCommandShellCodeTaskSet(CovenantAPI CovenantClient) : base(CovenantClient) { }
-        public override void Command(MenuItem menuItem, string UserInput)
+        public MenuCommandShellCodeTaskSet(CovenantAPI CovenantClient) : base(CovenantClient)
         {
-            TaskMenuItem taskMenuItem = ((TaskMenuItem)menuItem);
-            List<string> commands = UserInput.Split(" ").ToList();
-            IList<GruntTaskOption> options = taskMenuItem.task.Options;
-            GruntTaskOption option = options.FirstOrDefault(O => O.Name.ToLower() == commands[1].ToLower());
-            if (commands.Count() < 3 || commands.First().ToLower() != "set")
+            Name = "Set";
+            Description = "Set ShellCodeTask option";
+            Parameters = new List<MenuCommandParameter> {
+                new MenuCommandParameter { Name = "Option" },
+                new MenuCommandParameter { Name = "Value" }
+            };
+        }
+
+        public override async void Command(MenuItem menuItem, string UserInput)
+        {
+            try
             {
-                menuItem.PrintInvalidOptionError(UserInput);
-            }
-            else if (commands[1].ToLower() == "ShellcodeBinFilePath".ToLower())
-            {
-                string FilePath = Path.Combine(Common.EliteDataFolder, commands[2]);
-                if (!File.Exists(FilePath))
+                List<string> commands = UserInput.Split(" ").ToList();
+                if (commands.Count() < 3 || !commands[0].Equals(this.Name, StringComparison.OrdinalIgnoreCase))
                 {
                     menuItem.PrintInvalidOptionError(UserInput);
-                    EliteConsole.PrintFormattedErrorLine("File: \"" + FilePath + "\" does not exist on the local system.");
                     return;
                 }
-                byte[] FileContents = File.ReadAllBytes(FilePath);
-                StringBuilder hex = new StringBuilder();
-                foreach (byte b in FileContents)
+                GruntTask task = ((TaskMenuItem)menuItem).Task;
+                GruntTaskOption option = task.Options.FirstOrDefault(O => O.Name.Equals(commands[1], StringComparison.OrdinalIgnoreCase));
+                if (commands[1].Equals("LocalFilePath", StringComparison.OrdinalIgnoreCase))
                 {
-                    hex.AppendFormat("{0:x2}", b);
+                    string FilePath = Path.Combine(Common.EliteDataFolder, commands[2]);
+                    if (!File.Exists(FilePath))
+                    {
+                        menuItem.PrintInvalidOptionError(UserInput);
+                        EliteConsole.PrintFormattedErrorLine("File: \"" + FilePath + "\" does not exist on the local system.");
+                        return;
+                    }
+                    byte[] FileContents = File.ReadAllBytes(FilePath);
+                    StringBuilder hex = new StringBuilder();
+                    foreach (byte b in FileContents)
+                    {
+                        hex.AppendFormat("{0:x2}", b);
+                    }
+                    task.Options.FirstOrDefault(O => O.Name == "Hex").Value = hex.ToString();
+                    await this.CovenantClient.ApiGrunttasksPutAsync(task);
                 }
-                options.FirstOrDefault(O => O.Name == "Hex").Value = hex.ToString();
-                CovenantClient.ApiGruntTasksByIdPut(taskMenuItem.task.Id ?? default, taskMenuItem.task);
+                else if (option == null)
+                {
+                    menuItem.PrintInvalidOptionError(UserInput);
+                    EliteConsole.PrintFormattedErrorLine("Invalid Set option: \"" + commands[1] + "\"");
+                    return;
+                }
+                else
+                {
+                    option.Value = String.Join(" ", commands.GetRange(2, commands.Count() - 2));
+                    await this.CovenantClient.ApiGrunttasksPutAsync(task);
+                }
             }
-            else if (option == null)
+            catch (HttpOperationException e)
             {
-                menuItem.PrintInvalidOptionError(UserInput);
-                EliteConsole.PrintFormattedErrorLine("Invalid Set option: \"" + commands[1] + "\"");
-            }
-            else
-            {
-                option.Value = String.Join(" ", commands.GetRange(2, commands.Count() - 2));
-                CovenantClient.ApiGruntTasksByIdPut(taskMenuItem.task.Id ?? default, taskMenuItem.task);
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
             }
         }
     }

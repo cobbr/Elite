@@ -3,7 +3,6 @@
 // License: GNU GPLv3
 
 using System;
-using System.IO;
 using System.Text;
 using System.Net.Http;
 using System.Collections.Generic;
@@ -15,38 +14,16 @@ namespace Elite.Menu
 {
     public class EliteMenu
     {
-		public EventHandler<EventOccurredArgs> onEventOccured;
-        
         private List<MenuItem> MenuStack { get; set; } = new List<MenuItem>();
-		private EventPrinter EventPrinter { get; set; } = new EventPrinter();
         private CovenantAPI CovenantClient { get; set; }
         
         public EliteMenu(CovenantAPI CovenantClient)
         {
             this.CovenantClient = CovenantClient;
-			this.MenuStack.Add(new CovenantBaseMenuItem(this.CovenantClient, this.EventPrinter));
-            this.onEventOccured = (sender, eventArgs) =>
-            {
-				string context = this.GetMenuLevelTitleStack();
-				EventModel theEvent = eventArgs.theEvent;
-                if (theEvent.Type == EventType.Normal)
-                {
-                    if (this.EventPrinter.WillPrintEvent(theEvent, context))
-                    {
-                        EliteConsole.PrintInfoLine();
-                        this.EventPrinter.PrintEvent(theEvent, context);
-                        this.PrintMenuLevel();
-                    }
-                }
-                else if (theEvent.Type == EventType.Download)
-                {
-                    DownloadEvent downloadEvent = this.CovenantClient.ApiEventsDownloadByIdGet(theEvent.Id ?? default);
-                    File.WriteAllBytes(Path.Combine(Common.EliteDownloadsFolder, downloadEvent.FileName), Convert.FromBase64String(downloadEvent.FileContents));
-                }
-            };
+			this.MenuStack.Add(new CovenantBaseMenuItem(this.CovenantClient));
         }
 
-        private string GetMenuLevelTitleStack()
+        public string GetMenuLevelTitleStack()
 		{
 			StringBuilder builder = new StringBuilder();
 			if (this.MenuStack.Count > 1)
@@ -60,7 +37,7 @@ namespace Elite.Menu
 			return builder.ToString();
 		}
 
-        private void PrintMenuLevel()
+        public void PrintMenuLevel()
         {
             if (MenuStack.Count > 1)
             {
@@ -87,7 +64,7 @@ namespace Elite.Menu
                 if (UserInput != "")
                 {
                     MenuItem currentMenuItem = this.GetCurrentMenuItem();
-                    if (UserInput.ToLower() == "back")
+                    if (UserInput.Equals("back", StringComparison.OrdinalIgnoreCase))
                     {
                         if (this.MenuStack.Count > 1) {
                             currentMenuItem.LeavingMenuItem();
@@ -97,11 +74,11 @@ namespace Elite.Menu
                         }
                         else { currentMenuItem.PrintInvalidOptionError(UserInput); }
                     }
-                    else if (UserInput.ToLower() == "exit")
+                    else if (UserInput.Equals("exit", StringComparison.OrdinalIgnoreCase))
                     {
                         EliteConsole.PrintFormattedWarning("Exit Elite console? [y/N] ");
                         string input = EliteConsole.Read();
-                        if (input.ToLower().StartsWith("y"))
+                        if (input.StartsWith("y", StringComparison.OrdinalIgnoreCase))
                         {
                             return false;
                         }
@@ -154,57 +131,4 @@ namespace Elite.Menu
             return true;
         }
     }
-
-    public class EventPrinter
-	{
-		private HashSet<int> PrintedEvents { get; set; } = new HashSet<int>();
-		private static object _EventLock = new object();
-
-		public void PrintEvent(EventModel theEvent, string Context = "*")
-		{
-			lock (_EventLock)
-			{
-				if (this.WillPrintEvent(theEvent, Context))
-				{
-					switch (theEvent.Level)
-					{
-						case EventLevel.Highlight:
-							EliteConsole.PrintFormattedHighlightLine(theEvent.Message);
-							break;
-						case EventLevel.Info:
-                            EliteConsole.PrintInfoLine(theEvent.Message);
-							break;
-						case EventLevel.Warning:
-							EliteConsole.PrintFormattedWarningLine(theEvent.Message);
-							break;
-						case EventLevel.Error:
-							EliteConsole.PrintFormattedErrorLine(theEvent.Message);
-							break;
-						default:
-							EliteConsole.PrintFormattedInfo(theEvent.Message);
-							break;
-					}
-					PrintedEvents.Add(theEvent.Id ?? default);
-				}
-			}
-		}
-
-        public bool WillPrintEvent(EventModel theEvent, string Context = "*")
-		{
-			return this.ContextMatches(theEvent, Context) && !this.HasPrintedEvent(theEvent);
-		}
-        
-		public bool HasPrintedEvent(EventModel theEvent)
-		{
-			lock (_EventLock)
-			{
-				return PrintedEvents.Contains(theEvent.Id ?? default);
-			}
-		}
-
-        public bool ContextMatches(EventModel theEvent, string Context = "*")
-		{
-			return theEvent.Context == "*" || Context.ToLower().Contains(theEvent.Context.ToLower());
-		}
-	}
 }

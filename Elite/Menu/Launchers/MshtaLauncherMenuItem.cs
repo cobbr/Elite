@@ -6,6 +6,8 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 
+using Microsoft.Rest;
+
 using Covenant.API;
 using Covenant.API.Models;
 
@@ -22,22 +24,39 @@ namespace Elite.Menu.Launchers
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
-            MshtaLauncherMenuItem mshtaMenuItem = (MshtaLauncherMenuItem)menuItem;
-            mshtaMenuItem.mshtaLauncher = this.CovenantClient.ApiLaunchersMshtaGet();
-            MshtaLauncher launcher = mshtaMenuItem.mshtaLauncher;
-            Listener listener = this.CovenantClient.ApiListenersGet().FirstOrDefault(L => L.Id == mshtaMenuItem.mshtaLauncher.ListenerId);
+            try
+            {
+                menuItem.Refresh();
+                MshtaLauncher launcher = ((MshtaLauncherMenuItem)menuItem).MshtaLauncher;
+                Listener listener = this.CovenantClient.ApiListenersGet().FirstOrDefault(L => L.Id == launcher.ListenerId);
 
-            EliteConsoleMenu menu = new EliteConsoleMenu(EliteConsoleMenu.EliteConsoleMenuType.Parameter, "MshtaLauncher");
-            menu.Rows.Add(new List<string> { "Name:", launcher.Name });
-            menu.Rows.Add(new List<string> { "Description:", launcher.Description });
-            menu.Rows.Add(new List<string> { "ListenerName:", listener == null ? "" : listener.Name });
-            menu.Rows.Add(new List<string> { "ScriptLanguage:", launcher.ScriptLanguage.ToString() });
-            menu.Rows.Add(new List<string> { "DotNetFramework:", launcher.DotNetFrameworkVersion.ToString() });
-            menu.Rows.Add(new List<string> { "Delay:", (launcher.Delay ?? default).ToString() });
-            menu.Rows.Add(new List<string> { "Jitter:", (launcher.Jitter ?? default).ToString() });
-            menu.Rows.Add(new List<string> { "ConnectAttempts:", (launcher.ConnectAttempts ?? default).ToString() });
-            menu.Rows.Add(new List<string> { "LauncherString:", launcher.LauncherString });
-            menu.Print();
+                EliteConsoleMenu menu = new EliteConsoleMenu(EliteConsoleMenu.EliteConsoleMenuType.Parameter, "MshtaLauncher");
+                menu.Rows.Add(new List<string> { "Name:", launcher.Name });
+                menu.Rows.Add(new List<string> { "Description:", launcher.Description });
+                menu.Rows.Add(new List<string> { "ListenerName:", listener == null ? "" : listener.Name });
+                menu.Rows.Add(new List<string> { "CommType:", launcher.CommType.ToString() });
+                if (launcher.CommType == CommunicationType.HTTP)
+                {
+                    menu.Rows.Add(new List<string> { "  ValidateCert:", launcher.ValidateCert.ToString() });
+                    menu.Rows.Add(new List<string> { "  UseCertPinning:", launcher.UseCertPinning.ToString() });
+                }
+                else if (launcher.CommType == CommunicationType.SMB)
+                {
+                    menu.Rows.Add(new List<string> { "  SMBPipeName:", launcher.SmbPipeName });
+                }
+                menu.Rows.Add(new List<string> { "DotNetFramework:", launcher.DotNetFrameworkVersion == DotNetVersion.Net35 ? "v3.5" : "v4.0" });
+                menu.Rows.Add(new List<string> { "ScriptLanguage:", launcher.ScriptLanguage.ToString() });
+                menu.Rows.Add(new List<string> { "Delay:", (launcher.Delay ?? default).ToString() });
+                menu.Rows.Add(new List<string> { "JitterPercent:", (launcher.JitterPercent ?? default).ToString() });
+                menu.Rows.Add(new List<string> { "ConnectAttempts:", (launcher.ConnectAttempts ?? default).ToString() });
+                menu.Rows.Add(new List<string> { "KillDate:", launcher.KillDate.ToString() });
+                menu.Rows.Add(new List<string> { "LauncherString:", launcher.LauncherString });
+                menu.Print();
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
     }
 
@@ -52,15 +71,22 @@ namespace Elite.Menu.Launchers
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
-            MshtaLauncherMenuItem mshtaMenuItem = (MshtaLauncherMenuItem)menuItem;
-            mshtaMenuItem.mshtaLauncher = this.CovenantClient.ApiLaunchersMshtaPost();
-            EliteConsole.PrintFormattedHighlightLine("Generated MshtaLauncher: " + mshtaMenuItem.mshtaLauncher.LauncherString);
+            try
+            {
+                this.CovenantClient.ApiLaunchersMshtaPost();
+                menuItem.Refresh();
+                EliteConsole.PrintFormattedHighlightLine("Generated MshtaLauncher: " + ((MshtaLauncherMenuItem)menuItem).MshtaLauncher.LauncherString);
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
     }
 
     public class MenuCommandMshtaLauncherCode : MenuCommand
     {
-        public MenuCommandMshtaLauncherCode() : base()
+        public MenuCommandMshtaLauncherCode(CovenantAPI CovenantClient) : base(CovenantClient)
         {
             this.Name = "Code";
             this.Description = "Get the currently generated GruntStager or Scriptlet code.";
@@ -70,7 +96,6 @@ namespace Elite.Menu.Launchers
                     Name = "Type",
                     Values = new List<MenuCommandParameterValue> {
                         new MenuCommandParameterValue { Value = "Scriptlet" },
-                        new MenuCommandParameterValue { Value = "Stager" },
                         new MenuCommandParameterValue { Value = "GruntStager" }
                     }
                 }
@@ -79,33 +104,40 @@ namespace Elite.Menu.Launchers
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
-            MshtaLauncherMenuItem mshtaMenuItem = (MshtaLauncherMenuItem)menuItem;
-            string[] commands = UserInput.Split(" ");
-            if (commands.Length < 1 || commands.Length > 2 || commands[0].ToLower() != "code")
+            try
             {
-                menuItem.PrintInvalidOptionError(UserInput);
-                return;
+                string[] commands = UserInput.Split(" ");
+                if (commands.Length < 1 || commands.Length > 2 || !commands[0].Equals(this.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    menuItem.PrintInvalidOptionError(UserInput);
+                    return;
+                }
+                if (commands.Length == 2 && (!new List<string> { "gruntstager", "scriptlet" }.Contains(commands[1], StringComparer.OrdinalIgnoreCase)))
+                {
+                    EliteConsole.PrintFormattedErrorLine("Type must be one of: \"GruntStager\" or \"Scriptlet\"");
+                    menuItem.PrintInvalidOptionError(UserInput);
+                    return;
+                }
+                MshtaLauncher launcher = ((MshtaLauncherMenuItem)menuItem).MshtaLauncher;
+                if (launcher.LauncherString == "")
+                {
+                    this.CovenantClient.ApiLaunchersMshtaPost();
+                    menuItem.Refresh();
+                    launcher = ((MshtaLauncherMenuItem)menuItem).MshtaLauncher;
+                    EliteConsole.PrintFormattedHighlightLine("Generated MshtaLauncher: " + launcher.LauncherString);
+                }
+                if (commands.Length == 1 || (commands.Length == 2 && commands[1].Equals("gruntstager", StringComparison.OrdinalIgnoreCase)))
+                {
+                    EliteConsole.PrintInfoLine(launcher.StagerCode);
+                }
+                else if (commands.Length == 2 && commands[1].Equals("scriptlet", StringComparison.OrdinalIgnoreCase))
+                {
+                    EliteConsole.PrintInfoLine(launcher.DiskCode);
+                }
             }
-            else if (commands.Length == 2 && (!new List<string> { "stager", "gruntstager", "scriptlet" }.Contains(commands[1].ToLower())))
+            catch (HttpOperationException e)
             {
-                EliteConsole.PrintFormattedErrorLine("Type must be one of: \"Stager\"\\\"GruntStager\" or \"Scriptlet\"");
-                menuItem.PrintInvalidOptionError(UserInput);
-                return;
-            }
-            mshtaMenuItem.Refresh();
-            if (mshtaMenuItem.mshtaLauncher.LauncherString == "")
-            {
-                mshtaMenuItem.CovenantClient.ApiLaunchersMshtaPost();
-                mshtaMenuItem.Refresh();
-                EliteConsole.PrintFormattedHighlightLine("Generated MshtaLauncher: " + mshtaMenuItem.mshtaLauncher.LauncherString);
-            }
-            if (commands.Length == 1 || (commands.Length == 2 && (commands[1].ToLower() == "stager" || commands[1].ToLower() == "gruntstager")))
-            {
-                EliteConsole.PrintInfoLine(mshtaMenuItem.mshtaLauncher.StagerCode);
-            }
-            else if (commands.Length == 2 && commands[1].ToLower() == "scriptlet")
-            {
-                EliteConsole.PrintInfoLine(mshtaMenuItem.mshtaLauncher.DiskCode);
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
             }
         }
     }
@@ -124,72 +156,82 @@ namespace Elite.Menu.Launchers
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
-            MshtaLauncherMenuItem mshtaMenuItem = (MshtaLauncherMenuItem)menuItem;
-            string[] commands = UserInput.Split(" ");
-            if (commands.Length != 2 || commands[0].ToLower() != "host")
+            try
             {
-                menuItem.PrintInvalidOptionError(UserInput);
-                return;
-            }
-            mshtaMenuItem.mshtaLauncher = this.CovenantClient.ApiLaunchersMshtaPost();
-            HttpListener listener = this.CovenantClient.ApiListenersHttpByIdGet(mshtaMenuItem.mshtaLauncher.ListenerId ?? default);
-            if (listener == null)
-            {
-                EliteConsole.PrintFormattedErrorLine("Can only host a file on a valid HttpListener.");
-                menuItem.PrintInvalidOptionError(UserInput);
-                return;
-            }
-            HostedFile fileToHost = new HostedFile
-            {
-                ListenerId = listener.Id,
-                Path = commands[1],
-                Content = Convert.ToBase64String(Common.CovenantEncoding.GetBytes(mshtaMenuItem.mshtaLauncher.DiskCode))
-            };
+                string[] commands = UserInput.Split(" ");
+                if (commands.Length != 2 || !commands[0].Equals(this.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    menuItem.PrintInvalidOptionError(UserInput);
+                    return;
+                }
+                this.CovenantClient.ApiLaunchersMshtaPost();
+                menuItem.Refresh();
+                MshtaLauncher launcher = ((MshtaLauncherMenuItem)menuItem).MshtaLauncher;
+                HttpListener listener = this.CovenantClient.ApiListenersHttpByIdGet(launcher.ListenerId ?? default);
+                if (listener == null)
+                {
+                    EliteConsole.PrintFormattedErrorLine("Can only host a file on a valid HttpListener.");
+                    menuItem.PrintInvalidOptionError(UserInput);
+                    return;
+                }
+                HostedFile fileToHost = new HostedFile
+                {
+                    ListenerId = listener.Id,
+                    Path = commands[1],
+                    Content = Convert.ToBase64String(Common.CovenantEncoding.GetBytes(launcher.DiskCode))
+                };
 
-            fileToHost = this.CovenantClient.ApiListenersByIdHostedfilesPost(listener.Id ?? default, fileToHost);
-            mshtaMenuItem.mshtaLauncher = this.CovenantClient.ApiLaunchersMshtaHostedPost(fileToHost);
+                fileToHost = this.CovenantClient.ApiListenersByIdHostedfilesPost(listener.Id ?? default, fileToHost);
+                launcher = this.CovenantClient.ApiLaunchersMshtaHostedPost(fileToHost);
 
-            Uri hostedLocation = new Uri(listener.Url + fileToHost.Path);
-            EliteConsole.PrintFormattedHighlightLine("MshtaLauncher hosted at: " + hostedLocation);
-            EliteConsole.PrintFormattedInfoLine("Launcher: " + mshtaMenuItem.mshtaLauncher.LauncherString);
+                Uri hostedLocation = new Uri(listener.Url + fileToHost.Path);
+                EliteConsole.PrintFormattedHighlightLine("MshtaLauncher hosted at: " + hostedLocation);
+                EliteConsole.PrintFormattedInfoLine("Launcher: " + launcher.LauncherString);
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
     }
 
     public class MenuCommandMshtaLauncherWriteFile : MenuCommand
     {
-        public MenuCommandMshtaLauncherWriteFile()
+        public MenuCommandMshtaLauncherWriteFile(CovenantAPI CovenantClient) : base(CovenantClient)
         {
             this.Name = "Write";
             this.Description = "Write hta to a file";
             this.Parameters = new List<MenuCommandParameter> {
-                new MenuCommandParameter {
-                    Name = "Output File",
-                    Values = new MenuCommandParameterValuesFromFilePath(Common.EliteDataFolder)
-                }
+                new MenuCommandParameter { Name = "Output File" }
             };
         }
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
-            MshtaLauncherMenuItem mshtaLauncherMenuItem = ((MshtaLauncherMenuItem)menuItem);
-            string[] commands = UserInput.Split(" ");
-            if (commands.Length != 2 || commands[0].ToLower() != "write")
+            try
             {
-                menuItem.PrintInvalidOptionError(UserInput);
-            }
-            else
-            {
-                mshtaLauncherMenuItem.Refresh();
-                if (mshtaLauncherMenuItem.mshtaLauncher.LauncherString == "")
+                string[] commands = UserInput.Split(" ");
+                if (commands.Length != 2 || !commands[0].Equals(this.Name, StringComparison.OrdinalIgnoreCase))
                 {
-                    mshtaLauncherMenuItem.CovenantClient.ApiLaunchersBinaryPost();
-                    mshtaLauncherMenuItem.Refresh();
-                    EliteConsole.PrintFormattedHighlightLine("Generated MshtaLauncher: " + mshtaLauncherMenuItem.mshtaLauncher.LauncherString);
+                    menuItem.PrintInvalidOptionError(UserInput);
+                    return;
+                }
+                menuItem.Refresh();
+                MshtaLauncher launcher = ((MshtaLauncherMenuItem)menuItem).MshtaLauncher;
+                if (launcher.LauncherString == "")
+                {
+                    this.CovenantClient.ApiLaunchersBinaryPost();
+                    menuItem.Refresh();
+                    EliteConsole.PrintFormattedHighlightLine("Generated MshtaLauncher: " + launcher.LauncherString);
                 }
 
                 string OutputFilePath = Common.EliteDataFolder + String.Concat(commands[1].Split(System.IO.Path.GetInvalidFileNameChars()));
-                System.IO.File.WriteAllText(OutputFilePath, mshtaLauncherMenuItem.mshtaLauncher.DiskCode);
-                EliteConsole.PrintFormattedHighlightLine("Wrote MshtaLauncher's hta to: \"" + OutputFilePath + "\"");
+                System.IO.File.WriteAllText(OutputFilePath, launcher.DiskCode);
+                EliteConsole.PrintFormattedHighlightLine("Wrote MshtaLauncher hta to: \"" + OutputFilePath + "\"");
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
             }
         }
     }
@@ -200,141 +242,206 @@ namespace Elite.Menu.Launchers
         {
             this.Name = "Set";
             this.Description = "Set MshtaLauncher option";
-            this.Parameters = new List<MenuCommandParameter> {
-                new MenuCommandParameter {
-                    Name = "Option",
-                    Values = new List<MenuCommandParameterValue> {
-                        new MenuCommandParameterValue {
-                            Value = "ListenerName",
-                            NextValueSuggestions =  this.CovenantClient.ApiListenersGet()
-                                            .Where(L => L.Status == ListenerStatus.Active)
-                                            .Select(L => L.Name).ToList()
-                        },
-                        new MenuCommandParameterValue {
-                            Value = "ScriptLanguage",
-                            NextValueSuggestions = new List<string> { "JScript", "VBScript" }
-                        },
-                        new MenuCommandParameterValue {
-                            Value = "DotNetFrameworkVersion",
-                            NextValueSuggestions = new List<string> { "net35", "net40" }
-                        },
-                        new MenuCommandParameterValue { Value = "Delay" },
-                        new MenuCommandParameterValue { Value = "Jitter" },
-                        new MenuCommandParameterValue { Value = "ConnectAttempts" },
-                        new MenuCommandParameterValue { Value = "LauncherString" }
-                    }
-                },
-                new MenuCommandParameter { Name = "Value" }
-            };
+            try
+            {
+                this.Parameters = new List<MenuCommandParameter> {
+                    new MenuCommandParameter {
+                        Name = "Option",
+                        Values = new List<MenuCommandParameterValue> {
+                            new MenuCommandParameterValue { Value = "ListenerName" },
+                            new MenuCommandParameterValue {
+                                Value = "CommType",
+                                NextValueSuggestions = new List<string> { "HTTP", "SMB" }
+                            },
+                            new MenuCommandParameterValue { Value = "SMBPipeName" },
+                            new MenuCommandParameterValue { Value = "ValidateCert" },
+                            new MenuCommandParameterValue { Value = "UseCertPinning" },
+                            new MenuCommandParameterValue {
+                                Value = "DotNetFrameworkVersion",
+                                NextValueSuggestions = new List<string> { "net35", "net40" }
+                            },
+                            new MenuCommandParameterValue {
+                                Value = "ScriptLanguage",
+                                NextValueSuggestions = new List<string> { "JScript", "VBScript" }
+                            },
+                            new MenuCommandParameterValue { Value = "Delay" },
+                            new MenuCommandParameterValue { Value = "JitterPercent" },
+                            new MenuCommandParameterValue { Value = "ConnectAttempts" },
+                            new MenuCommandParameterValue { Value = "KillDate" },
+                            new MenuCommandParameterValue { Value = "LauncherString" }
+                        }
+                    },
+                    new MenuCommandParameter { Name = "Value" }
+                };
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
 
-        public override void Command(MenuItem menuItem, string UserInput)
+        public override async void Command(MenuItem menuItem, string UserInput)
         {
-            MshtaLauncher mshtaLauncher = ((MshtaLauncherMenuItem)menuItem).mshtaLauncher;
-            string[] commands = UserInput.Split(" ");
-            if (commands.Length < 3 || commands[0].ToLower() != "set")
+            try
             {
-                menuItem.PrintInvalidOptionError(UserInput);
-                return;
+                List<string> commands = Utilities.ParseParameters(UserInput);
+                if (commands.Count() != 3 || !commands[0].Equals(this.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    menuItem.PrintInvalidOptionError(UserInput);
+                    return;
+                }
+                MshtaLauncher launcher = ((MshtaLauncherMenuItem)menuItem).MshtaLauncher;
+                if (this.Parameters.FirstOrDefault(P => P.Name == "Option").Values.Select(V => V.Value).Contains(commands[1], StringComparer.OrdinalIgnoreCase))
+                {
+                    if (commands[1].Equals("listenername", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Listener listener = this.CovenantClient.ApiListenersGet().FirstOrDefault(L => L.Name == commands[2]);
+                        if (listener == null || listener.Name != commands[2])
+                        {
+                            EliteConsole.PrintFormattedErrorLine("Invalid ListenerName: \"" + commands[2] + "\"");
+                            menuItem.PrintInvalidOptionError(UserInput);
+                            return;
+                        }
+                        launcher.ListenerId = listener.Id;
+                    }
+                    else if (commands[1].Equals("dotnetframeworkversion", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (commands[2].Contains("35", StringComparison.OrdinalIgnoreCase) || commands[2].Contains("3.5", StringComparison.OrdinalIgnoreCase))
+                        {
+                            launcher.DotNetFrameworkVersion = DotNetVersion.Net35;
+                        }
+                        else if (commands[2].Contains("40", StringComparison.OrdinalIgnoreCase) || commands[2].Contains("4.0", StringComparison.OrdinalIgnoreCase))
+                        {
+                            launcher.DotNetFrameworkVersion = DotNetVersion.Net40;
+                        }
+                        else
+                        {
+                            EliteConsole.PrintFormattedErrorLine("Invalid DotNetFrameworkVersion \"" + commands[2] + "\". Valid options are: v3.5, v4.0");
+                            menuItem.PrintInvalidOptionError(UserInput);
+                            return;
+                        }
+                    }
+                    else if (commands[1].Equals("commtype", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (commands[2].Equals("smb", StringComparison.OrdinalIgnoreCase))
+                        {
+                            launcher.CommType = CommunicationType.SMB;
+                        }
+                        else
+                        {
+                            launcher.CommType = CommunicationType.HTTP;
+                        }
+                    }
+                    else if (commands[1].Equals("validatecert", StringComparison.OrdinalIgnoreCase))
+                    {
+                        bool parsed = bool.TryParse(commands[2], out bool validate);
+                        if (parsed)
+                        {
+                            launcher.ValidateCert = validate;
+                        }
+                        else
+                        {
+                            menuItem.PrintInvalidOptionError(UserInput);
+                            return;
+                        }
+                    }
+                    else if (commands[1].Equals("usecertpinning", StringComparison.OrdinalIgnoreCase))
+                    {
+                        bool parsed = bool.TryParse(commands[2], out bool pin);
+                        if (parsed)
+                        {
+                            launcher.UseCertPinning = pin;
+                        }
+                        else
+                        {
+                            menuItem.PrintInvalidOptionError(UserInput);
+                            return;
+                        }
+                    }
+                    else if (commands[1].Equals("smbpipename", StringComparison.OrdinalIgnoreCase))
+                    {
+                        launcher.SmbPipeName = commands[2];
+                    }
+                    else if (commands[1].Equals("scriptlanguage", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (commands[2].StartsWith("js", StringComparison.OrdinalIgnoreCase))
+                        {
+                            launcher.ScriptLanguage = ScriptingLanguage.JScript;
+                        }
+                        else if (commands[2].StartsWith("vb", StringComparison.OrdinalIgnoreCase))
+                        {
+                            launcher.ScriptLanguage = ScriptingLanguage.VBScript;
+                        }
+                        else
+                        {
+                            EliteConsole.PrintFormattedErrorLine("Invalid ScriptLanguage \"" + commands[2] + "\". Valid options are: JScript, VBScript");
+                            menuItem.PrintInvalidOptionError(UserInput);
+                            return;
+                        }
+                    }
+                    else if (commands[1].Equals("delay", StringComparison.OrdinalIgnoreCase))
+                    {
+                        int.TryParse(commands[2], out int n);
+                        launcher.Delay = n;
+                    }
+                    else if (commands[1].Equals("jitterpercent", StringComparison.OrdinalIgnoreCase))
+                    {
+                        int.TryParse(commands[2], out int n);
+                        launcher.JitterPercent = n;
+                    }
+                    else if (commands[1].Equals("connectattempts", StringComparison.OrdinalIgnoreCase))
+                    {
+                        int.TryParse(commands[2], out int n);
+                        launcher.ConnectAttempts = n;
+                    }
+                    else if (commands[1].Equals("killdate", StringComparison.OrdinalIgnoreCase))
+                    {
+                        DateTime.TryParse(commands[2], out DateTime result);
+                        launcher.KillDate = result;
+                    }
+                    else if (commands[1].Equals("launcherstring", StringComparison.OrdinalIgnoreCase))
+                    {
+                        launcher.LauncherString = commands[2];
+                    }
+                    await this.CovenantClient.ApiLaunchersMshtaPutAsync(launcher);
+                }
+                else
+                {
+                    menuItem.PrintInvalidOptionError(UserInput);
+                }
             }
-            else if (this.Parameters.FirstOrDefault(P => P.Name == "Option").Values.Select(V => V.Value.ToLower()).Contains(commands[1].ToLower()))
+            catch (HttpOperationException e)
             {
-                if (commands[1].ToLower() == "listenername")
-                {
-                    Listener listener = this.CovenantClient.ApiListenersGet().FirstOrDefault(L => L.Name == commands[2]);
-                    if (listener == null || listener.Name != commands[2])
-                    {
-                        EliteConsole.PrintFormattedErrorLine("Invalid ListenerName: \"" + commands[2] + "\"");
-                        menuItem.PrintInvalidOptionError(UserInput);
-                        return;
-                    }
-                    else
-                    {
-                        mshtaLauncher.ListenerId = listener.Id;
-                    }
-                }
-                else if (commands[1].ToLower() == "dotnetframeworkversion")
-                {
-                    if (commands[2].ToLower().Contains("35") || commands[2].ToLower().Contains("3.5"))
-                    {
-                        mshtaLauncher.DotNetFrameworkVersion = DotNetVersion.Net35;
-                    }
-                    else if (commands[2].ToLower().Contains("40") || commands[2].ToLower().Contains("4.0"))
-                    {
-                        mshtaLauncher.DotNetFrameworkVersion = DotNetVersion.Net40;
-                    }
-                    else
-                    {
-                        EliteConsole.PrintFormattedErrorLine("Invalid DotNetFrameworkVersion \"" + commands[2] + "\". Valid options are: v3.5, v4.0");
-                        menuItem.PrintInvalidOptionError(UserInput);
-                        return;
-                    }
-                }
-                else if (commands[1].ToLower() == "scriptlanguage")
-                {
-                    if (commands[2].ToLower().StartsWith("js"))
-                    {
-                        mshtaLauncher.ScriptLanguage = ScriptingLanguage.JScript;
-                    }
-                    else if (commands[2].ToLower().StartsWith("vb"))
-                    {
-                        mshtaLauncher.ScriptLanguage = ScriptingLanguage.VBScript;
-                    }
-                    else
-                    {
-                        EliteConsole.PrintFormattedErrorLine("Invalid ScriptLanguage \"" + commands[2] + "\". Valid options are: JScript, VBScript");
-                        menuItem.PrintInvalidOptionError(UserInput);
-                        return;
-                    }
-                }
-                else if (commands[1].ToLower() == "delay")
-                {
-                    int.TryParse(commands[2], out int n);
-                    mshtaLauncher.Delay = n;
-                }
-                else if (commands[1].ToLower() == "jitter")
-                {
-                    int.TryParse(commands[2], out int n);
-                    mshtaLauncher.Jitter = n;
-                }
-                else if (commands[1].ToLower() == "connectattempts")
-                {
-                    int.TryParse(commands[2], out int n);
-                    mshtaLauncher.ConnectAttempts = n;
-                }
-                else if (commands[1].ToLower() == "launcherstring")
-                {
-                    mshtaLauncher.LauncherString = commands[2];
-                }
-                CovenantAPIExtensions.ApiLaunchersMshtaPut(this.CovenantClient, mshtaLauncher);
-            }
-            else
-            {
-                menuItem.PrintInvalidOptionError(UserInput);
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
             }
         }
     }
 
     public class MshtaLauncherMenuItem : MenuItem
     {
-        public MshtaLauncher mshtaLauncher { get; set; }
+        public MshtaLauncher MshtaLauncher { get; set; }
 
-		public MshtaLauncherMenuItem(CovenantAPI CovenantClient, EventPrinter EventPrinter) : base(CovenantClient, EventPrinter)
+		public MshtaLauncherMenuItem(CovenantAPI CovenantClient) : base(CovenantClient)
         {
-            this.mshtaLauncher = CovenantClient.ApiLaunchersMshtaGet();
-            this.MenuTitle = mshtaLauncher.Name;
-            this.MenuDescription = mshtaLauncher.Description;
+            try
+            {
+                this.MshtaLauncher = CovenantClient.ApiLaunchersMshtaGet();
+                this.MenuTitle = MshtaLauncher.Name;
+                this.MenuDescription = MshtaLauncher.Description;
 
-            this.AdditionalOptions.Add(new MenuCommandMshtaLauncherShow(CovenantClient));
-            this.AdditionalOptions.Add(new MenuCommandMshtaLauncherGenerate(CovenantClient));
-            this.AdditionalOptions.Add(new MenuCommandMshtaLauncherCode());
-            this.AdditionalOptions.Add(new MenuCommandMshtaLauncherHost(CovenantClient));
-            this.AdditionalOptions.Add(new MenuCommandMshtaLauncherWriteFile());
-            var setCommand = new MenuCommandMshtaLauncherSet(CovenantClient);
-            this.AdditionalOptions.Add(setCommand);
-            this.AdditionalOptions.Add(new MenuCommandGenericUnset(setCommand.Parameters.FirstOrDefault(P => P.Name == "Option").Values));
-
-            this.Refresh();
+                this.AdditionalOptions.Add(new MenuCommandMshtaLauncherShow(CovenantClient));
+                this.AdditionalOptions.Add(new MenuCommandMshtaLauncherGenerate(CovenantClient));
+                this.AdditionalOptions.Add(new MenuCommandMshtaLauncherCode(CovenantClient));
+                this.AdditionalOptions.Add(new MenuCommandMshtaLauncherHost(CovenantClient));
+                this.AdditionalOptions.Add(new MenuCommandMshtaLauncherWriteFile(CovenantClient));
+                var setCommand = new MenuCommandMshtaLauncherSet(CovenantClient);
+                this.AdditionalOptions.Add(setCommand);
+                this.AdditionalOptions.Add(new MenuCommandGenericUnset(setCommand.Parameters.FirstOrDefault(P => P.Name == "Option").Values));
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
 
         public override void PrintMenu()
@@ -344,14 +451,28 @@ namespace Elite.Menu.Launchers
 
         public override void Refresh()
         {
-            this.mshtaLauncher = this.CovenantClient.ApiLaunchersMshtaGet();
-            this.AdditionalOptions.FirstOrDefault(AO => AO.Name.ToLower() == "set").Parameters
-                .FirstOrDefault(P => P.Name.ToLower() == "option").Values
-                .FirstOrDefault(V => V.Value.ToLower() == "listenername")
-                .NextValueSuggestions = this.CovenantClient.ApiListenersGet()
-                                            .Where(L => L.Status == ListenerStatus.Active)
-                                            .Select(L => L.Name).ToList();
-            this.SetupMenuAutoComplete();
+            try
+            {
+                this.MshtaLauncher = this.CovenantClient.ApiLaunchersMshtaGet();
+
+                this.AdditionalOptions.FirstOrDefault(AO => AO.Name == "Set").Parameters
+                    .FirstOrDefault(P => P.Name == "Option").Values
+                        .FirstOrDefault(V => V.Value == "ListenerName")
+                        .NextValueSuggestions = this.CovenantClient.ApiListenersGet()
+                            .Where(L => L.Status == ListenerStatus.Active)
+                            .Select(L => L.Name)
+                            .ToList();
+
+                var filevalues = new MenuCommandParameterValuesFromFilePath(Common.EliteDataFolder);
+                this.AdditionalOptions.FirstOrDefault(AO => AO.Name == "Write").Parameters
+                    .FirstOrDefault().Values = filevalues;
+
+                this.SetupMenuAutoComplete();
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
     }
 }

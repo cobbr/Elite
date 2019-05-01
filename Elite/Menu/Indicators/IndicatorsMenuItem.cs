@@ -6,6 +6,8 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 
+using Microsoft.Rest;
+
 using Covenant.API;
 using Covenant.API.Models;
 
@@ -99,7 +101,7 @@ namespace Elite.Menu.Indicators
         public List<FileIndicator> FileIndicators { get; set; }
         public List<TargetIndicator> TargetIndicators { get; set; }
 
-        public IndicatorsMenuItem(CovenantAPI CovenantClient, EventPrinter EventPrinter) : base(CovenantClient, EventPrinter)
+        public IndicatorsMenuItem(CovenantAPI CovenantClient) : base(CovenantClient)
         {
             this.MenuTitle = "Indicators";
             this.MenuDescription = "Displays list of indicators.";
@@ -121,11 +123,18 @@ namespace Elite.Menu.Indicators
 
         public override void Refresh()
         {
-            this.AllIndicators = this.CovenantClient.ApiIndicatorsGet().ToList();
-            this.NetworkIndicators = this.CovenantClient.ApiIndicatorsNetworksGet().ToList();
-            this.FileIndicators = this.CovenantClient.ApiIndicatorsFilesGet().ToList();
-            this.TargetIndicators = this.CovenantClient.ApiIndicatorsTargetsGet().ToList();
-            this.SetupMenuAutoComplete();
+            try
+            {
+                this.AllIndicators = this.CovenantClient.ApiIndicatorsGet().ToList();
+                this.NetworkIndicators = this.CovenantClient.ApiIndicatorsNetworksGet().ToList();
+                this.FileIndicators = this.CovenantClient.ApiIndicatorsFilesGet().ToList();
+                this.TargetIndicators = this.CovenantClient.ApiIndicatorsTargetsGet().ToList();
+                this.SetupMenuAutoComplete();
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
     }
 }

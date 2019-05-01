@@ -6,6 +6,8 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 
+using Microsoft.Rest;
+
 using Covenant.API;
 using Covenant.API.Models;
 
@@ -22,23 +24,40 @@ namespace Elite.Menu.Launchers
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
-            MSBuildLauncherMenuItem msbuildMenuItem = (MSBuildLauncherMenuItem)menuItem;
-            msbuildMenuItem.msbuildLauncher = this.CovenantClient.ApiLaunchersMsbuildGet();
-            MSBuildLauncher launcher = msbuildMenuItem.msbuildLauncher;
-            Listener listener = this.CovenantClient.ApiListenersGet().FirstOrDefault(L => L.Id == msbuildMenuItem.msbuildLauncher.ListenerId);
+            try
+            {
+                menuItem.Refresh();
+                MSBuildLauncher launcher = ((MSBuildLauncherMenuItem)menuItem).MSBuildLauncher;
+                Listener listener = this.CovenantClient.ApiListenersGet().FirstOrDefault(L => L.Id == launcher.ListenerId);
 
-            EliteConsoleMenu menu = new EliteConsoleMenu(EliteConsoleMenu.EliteConsoleMenuType.Parameter, "MSBuildLauncher");
-            menu.Rows.Add(new List<string> { "Name:", launcher.Name });
-            menu.Rows.Add(new List<string> { "Description:", launcher.Description });
-            menu.Rows.Add(new List<string> { "ListenerName:", listener == null ? "" : listener.Name });
-            menu.Rows.Add(new List<string> { "TargetName:", launcher.TargetName });
-            menu.Rows.Add(new List<string> { "TaskName:", launcher.TaskName });
-            menu.Rows.Add(new List<string> { "DotNetFramework:", launcher.DotNetFrameworkVersion.ToString() });
-            menu.Rows.Add(new List<string> { "Delay:", (launcher.Delay ?? default).ToString() });
-            menu.Rows.Add(new List<string> { "Jitter:", (launcher.Jitter ?? default).ToString() });
-            menu.Rows.Add(new List<string> { "ConnectAttempts:", (launcher.ConnectAttempts ?? default).ToString() });
-            menu.Rows.Add(new List<string> { "LauncherString:", launcher.LauncherString });
-            menu.Print();
+                EliteConsoleMenu menu = new EliteConsoleMenu(EliteConsoleMenu.EliteConsoleMenuType.Parameter, "MSBuildLauncher");
+                menu.Rows.Add(new List<string> { "Name:", launcher.Name });
+                menu.Rows.Add(new List<string> { "Description:", launcher.Description });
+                menu.Rows.Add(new List<string> { "ListenerName:", listener == null ? "" : listener.Name });
+                menu.Rows.Add(new List<string> { "CommType:", launcher.CommType.ToString() });
+                if (launcher.CommType == CommunicationType.HTTP)
+                {
+                    menu.Rows.Add(new List<string> { "  ValidateCert:", launcher.ValidateCert.ToString() });
+                    menu.Rows.Add(new List<string> { "  UseCertPinning:", launcher.UseCertPinning.ToString() });
+                }
+                else if (launcher.CommType == CommunicationType.SMB)
+                {
+                    menu.Rows.Add(new List<string> { "  SMBPipeName:", launcher.SmbPipeName });
+                }
+                menu.Rows.Add(new List<string> { "DotNetFramework:", launcher.DotNetFrameworkVersion == DotNetVersion.Net35 ? "v3.5" : "v4.0" });
+                menu.Rows.Add(new List<string> { "TargetName:", launcher.TargetName });
+                menu.Rows.Add(new List<string> { "TaskName:", launcher.TaskName });
+                menu.Rows.Add(new List<string> { "Delay:", (launcher.Delay ?? default).ToString() });
+                menu.Rows.Add(new List<string> { "JitterPercent:", (launcher.JitterPercent ?? default).ToString() });
+                menu.Rows.Add(new List<string> { "ConnectAttempts:", (launcher.ConnectAttempts ?? default).ToString() });
+                menu.Rows.Add(new List<string> { "KillDate:", launcher.KillDate.ToString() });
+                menu.Rows.Add(new List<string> { "LauncherString:", launcher.LauncherString });
+                menu.Print();
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
     }
 
@@ -53,15 +72,22 @@ namespace Elite.Menu.Launchers
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
-            MSBuildLauncherMenuItem msbuildMenuItem = (MSBuildLauncherMenuItem)menuItem;
-            msbuildMenuItem.msbuildLauncher = this.CovenantClient.ApiLaunchersMsbuildPost();
-            EliteConsole.PrintFormattedHighlightLine("Generated MSBuildLauncher: " + msbuildMenuItem.msbuildLauncher.LauncherString);
+            try
+            {
+                this.CovenantClient.ApiLaunchersMsbuildPost();
+                menuItem.Refresh();
+                EliteConsole.PrintFormattedHighlightLine("Generated MSBuildLauncher: " + ((MSBuildLauncherMenuItem)menuItem).MSBuildLauncher.LauncherString);
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
     }
 
     public class MenuCommandMSBuildLauncherCode : MenuCommand
     {
-        public MenuCommandMSBuildLauncherCode() : base()
+        public MenuCommandMSBuildLauncherCode(CovenantAPI CovenantClient) : base(CovenantClient)
         {
             this.Name = "Code";
             this.Description = "Get the currently generated GruntStager or Scriptlet code.";
@@ -71,7 +97,6 @@ namespace Elite.Menu.Launchers
                     Name = "Type",
                     Values = new List<MenuCommandParameterValue> {
                         new MenuCommandParameterValue { Value = "XML" },
-                        new MenuCommandParameterValue { Value = "Stager" },
                         new MenuCommandParameterValue { Value = "GruntStager" }
                     }
                 }
@@ -80,33 +105,40 @@ namespace Elite.Menu.Launchers
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
-            MSBuildLauncherMenuItem msbuildMenuItem = (MSBuildLauncherMenuItem)menuItem;
-            string[] commands = UserInput.Split(" ");
-            if (commands.Length < 1 || commands.Length > 2 || commands[0].ToLower() != "code")
+            try
             {
-                menuItem.PrintInvalidOptionError(UserInput);
-                return;
+                string[] commands = UserInput.Split(" ");
+                if (commands.Length < 1 || commands.Length > 2 || !commands[0].Equals(this.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    menuItem.PrintInvalidOptionError(UserInput);
+                    return;
+                }
+                if (commands.Length == 2 && (!new List<string> { "gruntstager", "xml" }.Contains(commands[1], StringComparer.OrdinalIgnoreCase)))
+                {
+                    EliteConsole.PrintFormattedErrorLine("Type must be one of: \"GruntStager\" or \"XML\"");
+                    menuItem.PrintInvalidOptionError(UserInput);
+                    return;
+                }
+                MSBuildLauncher launcher = ((MSBuildLauncherMenuItem)menuItem).MSBuildLauncher;
+                if (launcher.LauncherString == "")
+                {
+                    this.CovenantClient.ApiLaunchersMsbuildPost();
+                    menuItem.Refresh();
+                    launcher = ((MSBuildLauncherMenuItem)menuItem).MSBuildLauncher;
+                    EliteConsole.PrintFormattedHighlightLine("Generated MSBuildLauncher: " + launcher.LauncherString);
+                }
+                if (commands.Length == 1 || (commands.Length == 2 && commands[1].Equals("gruntstager", StringComparison.OrdinalIgnoreCase)))
+                {
+                    EliteConsole.PrintInfoLine(launcher.StagerCode);
+                }
+                else if (commands.Length == 2 && commands[1].Equals("xml", StringComparison.OrdinalIgnoreCase))
+                {
+                    EliteConsole.PrintInfoLine(launcher.DiskCode);
+                }
             }
-            else if (commands.Length == 2 && (!new List<string> { "stager", "gruntstager", "xml" }.Contains(commands[1].ToLower())))
+            catch (HttpOperationException e)
             {
-                EliteConsole.PrintFormattedErrorLine("Type must be one of: \"Stager\"\\\"GruntStager\" or \"XML\"");
-                menuItem.PrintInvalidOptionError(UserInput);
-                return;
-            }
-            msbuildMenuItem.Refresh();
-            if (msbuildMenuItem.msbuildLauncher.LauncherString == "")
-            {
-                msbuildMenuItem.CovenantClient.ApiLaunchersMsbuildPost();
-                msbuildMenuItem.Refresh();
-                EliteConsole.PrintFormattedHighlightLine("Generated MSBuildLauncher: " + msbuildMenuItem.msbuildLauncher.LauncherString);
-            }
-            if (commands.Length == 1 || (commands.Length == 2 && (commands[1].ToLower() == "stager" || commands[1].ToLower() == "gruntstager")))
-            {
-                EliteConsole.PrintInfoLine(msbuildMenuItem.msbuildLauncher.StagerCode);
-            }
-            else if (commands.Length == 2 && commands[1].ToLower() == "xml")
-            {
-                EliteConsole.PrintInfoLine(msbuildMenuItem.msbuildLauncher.DiskCode);
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
             }
         }
     }
@@ -119,83 +151,89 @@ namespace Elite.Menu.Launchers
             this.Description = "Host a MSBuildLauncher on an HTTP Listener";
             this.Parameters = new List<MenuCommandParameter>
             {
-                new MenuCommandParameter {
-                    Name = "Path",
-                    Values = new MenuCommandParameterValuesFromFilePath(Common.EliteDataFolder)
-                }
+                new MenuCommandParameter { Name = "Path" }
             };
         }
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
-            MSBuildLauncherMenuItem msbuildMenuItem = (MSBuildLauncherMenuItem)menuItem;
-            string[] commands = UserInput.Split(" ");
-            if (commands.Length != 2 || commands[0].ToLower() != "host")
+            try
             {
-                menuItem.PrintInvalidOptionError(UserInput);
-                return;
+                string[] commands = UserInput.Split(" ");
+                if (commands.Length != 2 || !commands[0].Equals(this.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    menuItem.PrintInvalidOptionError(UserInput);
+                    return;
+                }
+                this.CovenantClient.ApiLaunchersMsbuildPost();
+                menuItem.Refresh();
+                MSBuildLauncher launcher = ((MSBuildLauncherMenuItem)menuItem).MSBuildLauncher;
+                HttpListener listener = this.CovenantClient.ApiListenersHttpByIdGet(launcher.ListenerId ?? default);
+                if (listener == null)
+                {
+                    EliteConsole.PrintFormattedErrorLine("Can only host a file on a valid HttpListener.");
+                    menuItem.PrintInvalidOptionError(UserInput);
+                    return;
+                }
+                HostedFile fileToHost = new HostedFile
+                {
+                    ListenerId = listener.Id,
+                    Path = commands[1],
+                    Content = Convert.ToBase64String(Common.CovenantEncoding.GetBytes(launcher.DiskCode))
+                };
+
+                fileToHost = this.CovenantClient.ApiListenersByIdHostedfilesPost(listener.Id ?? default, fileToHost);
+                launcher = this.CovenantClient.ApiLaunchersMsbuildHostedPost(fileToHost);
+
+                Uri hostedLocation = new Uri(listener.Url + fileToHost.Path);
+                EliteConsole.PrintFormattedHighlightLine("MSBuildLauncher hosted at: " + hostedLocation);
+                EliteConsole.PrintFormattedWarningLine("msbuild.exe cannot execute remotely hosted files, the payload must first be written to disk");
+                EliteConsole.PrintFormattedInfoLine("Launcher: " + launcher.LauncherString);
             }
-            msbuildMenuItem.msbuildLauncher = this.CovenantClient.ApiLaunchersMsbuildPost();
-            HttpListener listener = this.CovenantClient.ApiListenersHttpByIdGet(msbuildMenuItem.msbuildLauncher.ListenerId ?? default);
-            if (listener == null)
+            catch (HttpOperationException e)
             {
-                EliteConsole.PrintFormattedErrorLine("Can only host a file on a valid HttpListener.");
-                menuItem.PrintInvalidOptionError(UserInput);
-                return;
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
             }
-            HostedFile fileToHost = new HostedFile
-            {
-                ListenerId = listener.Id,
-                Path = commands[1],
-                Content = Convert.ToBase64String(Common.CovenantEncoding.GetBytes(msbuildMenuItem.msbuildLauncher.DiskCode))
-            };
-
-            fileToHost = this.CovenantClient.ApiListenersByIdHostedfilesPost(listener.Id ?? default, fileToHost);
-            msbuildMenuItem.msbuildLauncher = this.CovenantClient.ApiLaunchersMsbuildHostedPost(fileToHost);
-
-            Uri hostedLocation = new Uri(listener.Url + fileToHost.Path);
-            EliteConsole.PrintFormattedHighlightLine("MSBuildLauncher hosted at: " + hostedLocation);
-            EliteConsole.PrintFormattedWarningLine("msbuild.exe cannot execute remotely hosted files, the payload must first be written to disk");
-            EliteConsole.PrintFormattedInfoLine("Launcher: " + msbuildMenuItem.msbuildLauncher.LauncherString);
-
         }
     }
 
     public class MenuCommandMSBuildLauncherWriteFile : MenuCommand
     {
-        public MenuCommandMSBuildLauncherWriteFile()
+        public MenuCommandMSBuildLauncherWriteFile(CovenantAPI CovenantClient) : base(CovenantClient)
         {
             this.Name = "Write";
             this.Description = "Write xml to a file";
             this.Parameters = new List<MenuCommandParameter> {
-                new MenuCommandParameter {
-                    Name = "Output File",
-                    Values = new MenuCommandParameterValuesFromFilePath(Common.EliteDataFolder)
-                }
+                new MenuCommandParameter { Name = "Output File" }
             };
         }
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
-            MSBuildLauncherMenuItem msbuildLauncherMenuItem = ((MSBuildLauncherMenuItem)menuItem);
-            string[] commands = UserInput.Split(" ");
-            if (commands.Length != 2 || commands[0].ToLower() != "write")
+            try
             {
-                menuItem.PrintInvalidOptionError(UserInput);
-            }
-            else
-            {
-                msbuildLauncherMenuItem.Refresh();
-                if (msbuildLauncherMenuItem.msbuildLauncher.LauncherString == "")
+                string[] commands = UserInput.Split(" ");
+                if (commands.Length != 2 || commands[0].ToLower() != "write")
                 {
-                    msbuildLauncherMenuItem.CovenantClient.ApiLaunchersBinaryPost();
-                    msbuildLauncherMenuItem.Refresh();
-                    EliteConsole.PrintFormattedHighlightLine("Generated MSBuildLauncher: " + msbuildLauncherMenuItem.msbuildLauncher.LauncherString);
+                    menuItem.PrintInvalidOptionError(UserInput);
+                    return;
+                }
+                menuItem.Refresh();
+                MSBuildLauncher launcher = ((MSBuildLauncherMenuItem)menuItem).MSBuildLauncher;
+                if (launcher.LauncherString == "")
+                {
+                    this.CovenantClient.ApiLaunchersBinaryPost();
+                    menuItem.Refresh();
+                    EliteConsole.PrintFormattedHighlightLine("Generated MSBuildLauncher: " + launcher.LauncherString);
                 }
 
                 string OutputFilePath = Common.EliteDataFolder + String.Concat(commands[1].Split(System.IO.Path.GetInvalidFileNameChars()));
-                System.IO.File.WriteAllText(OutputFilePath, msbuildLauncherMenuItem.msbuildLauncher.DiskCode);
+                System.IO.File.WriteAllText(OutputFilePath, launcher.DiskCode);
                 EliteConsole.PrintFormattedHighlightLine("Wrote MSBuildLauncher to: \"" + OutputFilePath + "\"");
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
             }
         }
     }
@@ -206,130 +244,195 @@ namespace Elite.Menu.Launchers
         {
             this.Name = "Set";
             this.Description = "Set MSBuildLauncher option";
-            this.Parameters = new List<MenuCommandParameter> {
-                new MenuCommandParameter {
-                    Name = "Option",
-                    Values = new List<MenuCommandParameterValue> {
-                        new MenuCommandParameterValue {
-                            Value = "ListenerName",
-                            NextValueSuggestions = this.CovenantClient.ApiListenersGet()
-                                            .Where(L => L.Status == ListenerStatus.Active)
-                                            .Select(L => L.Name).ToList()
-                        },
-                        new MenuCommandParameterValue { Value = "TargetName" },
-                        new MenuCommandParameterValue { Value = "TaskName" },
-                        new MenuCommandParameterValue {
-                            Value = "DotNetFrameworkVersion",
-                            NextValueSuggestions = new List<string> { "net35", "net40" }
-                        },
-                        new MenuCommandParameterValue { Value = "Delay" },
-                        new MenuCommandParameterValue { Value = "Jitter" },
-                        new MenuCommandParameterValue { Value = "ConnectAttempts" },
-                        new MenuCommandParameterValue { Value = "LauncherString" }
-                    }
-                },
-                new MenuCommandParameter { Name = "Value" }
-            };
+            try
+            {
+                this.Parameters = new List<MenuCommandParameter> {
+                    new MenuCommandParameter {
+                        Name = "Option",
+                        Values = new List<MenuCommandParameterValue> {
+                            new MenuCommandParameterValue { Value = "ListenerName" },
+                            new MenuCommandParameterValue {
+                                Value = "CommType",
+                                NextValueSuggestions = new List<string> { "HTTP", "SMB" }
+                            },
+                            new MenuCommandParameterValue { Value = "SMBPipeName" },
+                            new MenuCommandParameterValue { Value = "ValidateCert" },
+                            new MenuCommandParameterValue { Value = "UseCertPinning" },
+                            new MenuCommandParameterValue {
+                                Value = "DotNetFrameworkVersion",
+                                NextValueSuggestions = new List<string> { "net35", "net40" }
+                            },
+                            new MenuCommandParameterValue { Value = "TargetName" },
+                            new MenuCommandParameterValue { Value = "TaskName" },
+                            new MenuCommandParameterValue { Value = "Delay" },
+                            new MenuCommandParameterValue { Value = "JitterPercent" },
+                            new MenuCommandParameterValue { Value = "ConnectAttempts" },
+                            new MenuCommandParameterValue { Value = "KillDate" },
+                            new MenuCommandParameterValue { Value = "LauncherString" }
+                        }
+                    },
+                    new MenuCommandParameter { Name = "Value" }
+                };
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
 
-        public override void Command(MenuItem menuItem, string UserInput)
+        public override async void Command(MenuItem menuItem, string UserInput)
         {
-            MSBuildLauncher msbuildLauncher = ((MSBuildLauncherMenuItem)menuItem).msbuildLauncher;
-            string[] commands = UserInput.Split(" ");
-            if (commands.Length < 3 || commands[0].ToLower() != "set")
+            try
             {
-                menuItem.PrintInvalidOptionError(UserInput);
-                return;
+                List<string> commands = Utilities.ParseParameters(UserInput);
+                if (commands.Count() != 3 || !commands[0].Equals(this.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    menuItem.PrintInvalidOptionError(UserInput);
+                    return;
+                }
+                MSBuildLauncher launcher = ((MSBuildLauncherMenuItem)menuItem).MSBuildLauncher;
+                if (this.Parameters.FirstOrDefault(P => P.Name == "Option").Values.Select(V => V.Value).Contains(commands[1], StringComparer.OrdinalIgnoreCase))
+                {
+                    if (commands[1].Equals("listenername", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Listener listener = this.CovenantClient.ApiListenersGet().FirstOrDefault(L => L.Name == commands[2]);
+                        if (listener == null || listener.Name != commands[2])
+                        {
+                            EliteConsole.PrintFormattedErrorLine("Invalid ListenerName: \"" + commands[2] + "\"");
+                            menuItem.PrintInvalidOptionError(UserInput);
+                            return;
+                        }
+                        launcher.ListenerId = listener.Id;
+                    }
+                    else if (commands[1].Equals("dotnetframeworkversion", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (commands[2].Contains("35", StringComparison.OrdinalIgnoreCase) || commands[2].Contains("3.5", StringComparison.OrdinalIgnoreCase))
+                        {
+                            launcher.DotNetFrameworkVersion = DotNetVersion.Net35;
+                        }
+                        else if (commands[2].Contains("40", StringComparison.OrdinalIgnoreCase) || commands[2].Contains("4.0", StringComparison.OrdinalIgnoreCase))
+                        {
+                            launcher.DotNetFrameworkVersion = DotNetVersion.Net40;
+                        }
+                        else
+                        {
+                            EliteConsole.PrintFormattedErrorLine("Invalid DotNetFrameworkVersion \"" + commands[2] + "\". Valid options are: v3.5, v4.0");
+                            menuItem.PrintInvalidOptionError(UserInput);
+                            return;
+                        }
+                    }
+                    else if (commands[1].Equals("targetname", StringComparison.OrdinalIgnoreCase))
+                    {
+                        launcher.TargetName = commands[2];
+                    }
+                    else if (commands[1].Equals("taskname", StringComparison.OrdinalIgnoreCase))
+                    {
+                        launcher.TaskName = commands[2];
+                    }
+                    else if (commands[1].Equals("commtype", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (commands[2].Equals("smb", StringComparison.OrdinalIgnoreCase))
+                        {
+                            launcher.CommType = CommunicationType.SMB;
+                        }
+                        else
+                        {
+                            launcher.CommType = CommunicationType.HTTP;
+                        }
+                    }
+                    else if (commands[1].Equals("validatecert", StringComparison.OrdinalIgnoreCase))
+                    {
+                        bool parsed = bool.TryParse(commands[2], out bool validate);
+                        if (parsed)
+                        {
+                            launcher.ValidateCert = validate;
+                        }
+                        else
+                        {
+                            menuItem.PrintInvalidOptionError(UserInput);
+                            return;
+                        }
+                    }
+                    else if (commands[1].Equals("usecertpinning", StringComparison.OrdinalIgnoreCase))
+                    {
+                        bool parsed = bool.TryParse(commands[2], out bool pin);
+                        if (parsed)
+                        {
+                            launcher.UseCertPinning = pin;
+                        }
+                        else
+                        {
+                            menuItem.PrintInvalidOptionError(UserInput);
+                            return;
+                        }
+                    }
+                    else if (commands[1].Equals("smbpipename", StringComparison.OrdinalIgnoreCase))
+                    {
+                        launcher.SmbPipeName = commands[2];
+                    }
+                    else if (commands[1].Equals("delay", StringComparison.OrdinalIgnoreCase))
+                    {
+                        int.TryParse(commands[2], out int n);
+                        launcher.Delay = n;
+                    }
+                    else if (commands[1].Equals("jitterpercent", StringComparison.OrdinalIgnoreCase))
+                    {
+                        int.TryParse(commands[2], out int n);
+                        launcher.JitterPercent = n;
+                    }
+                    else if (commands[1].Equals("connectattempts", StringComparison.OrdinalIgnoreCase))
+                    {
+                        int.TryParse(commands[2], out int n);
+                        launcher.ConnectAttempts = n;
+                    }
+                    else if (commands[1].Equals("killdate", StringComparison.OrdinalIgnoreCase))
+                    {
+                        DateTime.TryParse(commands[2], out DateTime result);
+                        launcher.KillDate = result;
+                    }
+                    else if (commands[1].Equals("launcherstring", StringComparison.OrdinalIgnoreCase))
+                    {
+                        launcher.LauncherString = commands[2];
+                    }
+                    await this.CovenantClient.ApiLaunchersMsbuildPutAsync(launcher);
+                }
+                else
+                {
+                    menuItem.PrintInvalidOptionError(UserInput);
+                }
             }
-            else if (this.Parameters.FirstOrDefault(P => P.Name == "Option").Values.Select(V => V.Value.ToLower()).Contains(commands[1].ToLower()))
+            catch (HttpOperationException e)
             {
-                if (commands[1].ToLower() == "listenername")
-                {
-                    Listener listener = this.CovenantClient.ApiListenersGet().FirstOrDefault(L => L.Name == commands[2]);
-                    if (listener == null || listener.Name != commands[2])
-                    {
-                        EliteConsole.PrintFormattedErrorLine("Invalid ListenerName: \"" + commands[2] + "\"");
-                        menuItem.PrintInvalidOptionError(UserInput);
-                        return;
-                    }
-                    else
-                    {
-                        msbuildLauncher.ListenerId = listener.Id;
-                    }
-                }
-                else if (commands[1].ToLower() == "targetname")
-                {
-                    msbuildLauncher.TargetName = commands[2];
-                }
-                else if (commands[1].ToLower() == "taskname")
-                {
-                    msbuildLauncher.TaskName = commands[2];
-                }
-                else if (commands[1].ToLower() == "dotnetframeworkversion")
-                {
-                    if (commands[2].ToLower().Contains("35") || commands[2].ToLower().Contains("3.5"))
-                    {
-                        msbuildLauncher.DotNetFrameworkVersion = DotNetVersion.Net35;
-                    }
-                    else if (commands[2].ToLower().Contains("40") || commands[2].ToLower().Contains("4.0"))
-                    {
-                        msbuildLauncher.DotNetFrameworkVersion = DotNetVersion.Net40;
-                    }
-                    else
-                    {
-                        EliteConsole.PrintFormattedErrorLine("Invalid DotNetFrameworkVersion \"" + commands[2] + "\". Valid options are: v3.5, v4.0");
-                        menuItem.PrintInvalidOptionError(UserInput);
-                        return;
-                    }
-                }
-                else if (commands[1].ToLower() == "delay")
-                {
-                    int.TryParse(commands[2], out int n);
-                    msbuildLauncher.Delay = n;
-                }
-                else if (commands[1].ToLower() == "jitter")
-                {
-                    int.TryParse(commands[2], out int n);
-                    msbuildLauncher.Jitter = n;
-                }
-                else if (commands[1].ToLower() == "connectattempts")
-                {
-                    int.TryParse(commands[2], out int n);
-                    msbuildLauncher.ConnectAttempts = n;
-                }
-                else if (commands[1].ToLower() == "launcherstring")
-                {
-                    msbuildLauncher.LauncherString = commands[2];
-                }
-                CovenantAPIExtensions.ApiLaunchersMsbuildPut(this.CovenantClient, msbuildLauncher);
-            }
-            else
-            {
-                menuItem.PrintInvalidOptionError(UserInput);
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
             }
         }
     }
 
     public class MSBuildLauncherMenuItem : MenuItem
     {
-        public MSBuildLauncher msbuildLauncher { get; set; }
+        public MSBuildLauncher MSBuildLauncher { get; set; }
 
-        public MSBuildLauncherMenuItem(CovenantAPI CovenantClient, EventPrinter EventPrinter) : base(CovenantClient, EventPrinter)
+        public MSBuildLauncherMenuItem(CovenantAPI CovenantClient) : base(CovenantClient)
         {
-            this.msbuildLauncher = CovenantClient.ApiLaunchersMsbuildGet();
-            this.MenuTitle = msbuildLauncher.Name;
-            this.MenuDescription = msbuildLauncher.Description;
+            try
+            {
+                this.MSBuildLauncher = CovenantClient.ApiLaunchersMsbuildGet();
+                this.MenuTitle = MSBuildLauncher.Name;
+                this.MenuDescription = MSBuildLauncher.Description;
 
-            this.AdditionalOptions.Add(new MenuCommandMSBuildLauncherShow(CovenantClient));
-            this.AdditionalOptions.Add(new MenuCommandMSBuildLauncherGenerate(CovenantClient));
-            this.AdditionalOptions.Add(new MenuCommandMSBuildLauncherCode());
-            this.AdditionalOptions.Add(new MenuCommandMSBuildLauncherHost(CovenantClient));
-            this.AdditionalOptions.Add(new MenuCommandMSBuildLauncherWriteFile());
-            var setCommand = new MenuCommandMSBuildLauncherSet(CovenantClient);
-            this.AdditionalOptions.Add(setCommand);
-            this.AdditionalOptions.Add(new MenuCommandGenericUnset(setCommand.Parameters.FirstOrDefault(P => P.Name == "Option").Values));
-
-            this.Refresh();
+                this.AdditionalOptions.Add(new MenuCommandMSBuildLauncherShow(CovenantClient));
+                this.AdditionalOptions.Add(new MenuCommandMSBuildLauncherGenerate(CovenantClient));
+                this.AdditionalOptions.Add(new MenuCommandMSBuildLauncherCode(CovenantClient));
+                this.AdditionalOptions.Add(new MenuCommandMSBuildLauncherHost(CovenantClient));
+                this.AdditionalOptions.Add(new MenuCommandMSBuildLauncherWriteFile(CovenantClient));
+                var setCommand = new MenuCommandMSBuildLauncherSet(CovenantClient);
+                this.AdditionalOptions.Add(setCommand);
+                this.AdditionalOptions.Add(new MenuCommandGenericUnset(setCommand.Parameters.FirstOrDefault(P => P.Name == "Option").Values));
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
 
         public override void PrintMenu()
@@ -339,14 +442,28 @@ namespace Elite.Menu.Launchers
 
         public override void Refresh()
         {
-            this.msbuildLauncher = this.CovenantClient.ApiLaunchersMsbuildGet();
-            this.AdditionalOptions.FirstOrDefault(AO => AO.Name.ToLower() == "set").Parameters
-                .FirstOrDefault(P => P.Name.ToLower() == "option").Values
-                .FirstOrDefault(V => V.Value.ToLower() == "listenername")
-                .NextValueSuggestions = this.CovenantClient.ApiListenersGet()
-                                            .Where(L => L.Status == ListenerStatus.Active)
-                                            .Select(L => L.Name).ToList();
-            this.SetupMenuAutoComplete();
+            try
+            {
+                this.MSBuildLauncher = this.CovenantClient.ApiLaunchersMsbuildGet();
+
+                this.AdditionalOptions.FirstOrDefault(AO => AO.Name == "Set").Parameters
+                    .FirstOrDefault(P => P.Name == "Option").Values
+                        .FirstOrDefault(V => V.Value == "ListenerName")
+                        .NextValueSuggestions = this.CovenantClient.ApiListenersGet()
+                            .Where(L => L.Status == ListenerStatus.Active)
+                            .Select(L => L.Name)
+                            .ToList();
+
+                var filevalues = new MenuCommandParameterValuesFromFilePath(Common.EliteDataFolder);
+                this.AdditionalOptions.FirstOrDefault(AO => AO.Name == "Write").Parameters
+                    .FirstOrDefault().Values = filevalues;
+
+                this.SetupMenuAutoComplete();
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
     }
 }

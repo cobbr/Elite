@@ -29,9 +29,19 @@ Covenant has several key features:
 
 First, you need to start Covenant! Go checkout the [Covenant README](https://github.com/cobbr/Covenant/blob/master/README.md) to see how to do that.
 
+### Dotnet Core
+
+The easiest way to use Elite, is by installing dotnet core. You can download dotnet core for your platform from [here](https://dotnet.microsoft.com/download).
+
+Once you have installed dotnet core, we can build and run Elite using the dotnet CLI:
+```
+$ ~/Elite/Elite > dotnet build
+$ ~/Elite/Elite > dotnet run
+```
+
 ### Docker
 
-Elite is easy to deploy with Docker!
+Elite can also be run with Docker. There are a couple of gotchas with Docker, so I only recommend using docker if you are familiar with docker or are willing to learn the subtle gotchas.
 
 First, build the docker image:
 ```
@@ -48,17 +58,6 @@ The `-it` parameter is a Docker parameter that indicates that we should begin El
 
 You will also be prompted to provide a password for the `AdminUser` user. Alternatively, you can set this non-interactively with the `--password` parameter to Elite, but this will leave your password in plaintext in command history, not ideal.
 
-### Without Docker
+### Questions and Discussion
 
-Don't like Docker? Ok.... :(
-
-We can build and run Elite ourselves using `dotnet` core. Be sure to have installed dotnet core 2.1 prior to attempting!
-```
-$ ~/Elite/Elite > dotnet build
-$ ~/Elite/Elite > dotnet run --username AdminUser --computername <Covenant IP>
-```
-
-Have a redistributable `Elite.dll`? Okay, no need to build, we can run this with dotnet core as well:
-```
-$ ~/Elite/Elite > dotnet Elite.dll -u AdminUser -c <Covenant IP>
-```
+Have questions or want to chat more about Covenant/Elite? Join the #Covenant channel in the [BloodHound Gang Slack](https://bloodhoundgang.herokuapp.com/).

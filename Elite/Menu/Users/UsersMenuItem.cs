@@ -6,6 +6,8 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 
+using Microsoft.Rest;
+
 using Covenant.API;
 using Covenant.API.Models;
 
@@ -22,27 +24,34 @@ namespace Elite.Menu.Users
         
         public override void Command(MenuItem menuItem, string UserInput)
         {
-			UsersMenuItem usersMenuItem = (UsersMenuItem)menuItem;
-			usersMenuItem.Refresh();
-            EliteConsoleMenu menu = new EliteConsoleMenu(EliteConsoleMenu.EliteConsoleMenuType.List, "Users");
-            menu.Columns.Add("Username");
-			menu.Columns.Add("Roles");
-            menu.Columns.Add("Status");
-			usersMenuItem.Users.ForEach(U =>
+            try
             {
-				var userRoles = this.CovenantClient.ApiUsersByUidRolesGet(U.Id).ToList();
-				List<string> roles = new List<string>();
-				foreach (var userRole in userRoles)
-				{
-					IdentityRole role = CovenantClient.ApiRolesByRidGet(userRole.RoleId);
-					if (role != null)
-					{
-						roles.Add(role.Name);
-					}
-				}
-				menu.Rows.Add(new List<string> { U.UserName, String.Join(", ", roles), "Active" });
-            });
-            menu.Print();
+                menuItem.Refresh();
+                List<CovenantUser> Users = ((UsersMenuItem)menuItem).Users;
+                EliteConsoleMenu menu = new EliteConsoleMenu(EliteConsoleMenu.EliteConsoleMenuType.List, "Users");
+                menu.Columns.Add("Username");
+                menu.Columns.Add("Roles");
+                menu.Columns.Add("Status");
+                Users.ForEach(U =>
+                {
+                    var userRoles = this.CovenantClient.ApiUsersByIdRolesGet(U.Id).ToList();
+                    List<string> roles = new List<string>();
+                    foreach (var userRole in userRoles)
+                    {
+                        IdentityRole role = this.CovenantClient.ApiRolesByRidGet(userRole.RoleId);
+                        if (role != null)
+                        {
+                            roles.Add(role.Name);
+                        }
+                    }
+                    menu.Rows.Add(new List<string> { U.UserName, String.Join(", ", roles), "Active" });
+                });
+                menu.Print();
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
     }
 
@@ -68,44 +77,37 @@ namespace Elite.Menu.Users
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
-            UsersMenuItem usersMenuItem = (UsersMenuItem)menuItem;
-            usersMenuItem.Refresh();
-			string[] commands = UserInput.Split(" ");
-			if (commands.Length < 3 || commands.Length > 4 || commands[0].ToLower() != "create")
+            try
             {
-                menuItem.PrintInvalidOptionError(UserInput);
-				EliteConsole.PrintFormattedErrorLine("Usage: Create <username> <password> [<roles>]");
-                return;
+                string[] commands = UserInput.Split(" ");
+                if (commands.Length < 3 || commands.Length > 4 || !commands[0].Equals(this.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    menuItem.PrintInvalidOptionError(UserInput);
+                    EliteConsole.PrintFormattedErrorLine("Usage: Create <username> <password> [<roles>]");
+                    return;
+                }
+                CovenantUser user = this.CovenantClient.ApiUsersPost(new CovenantUserLogin(commands[1], commands[2]));
+                if (user != null)
+                {
+                    if (commands.Length == 4)
+                    {
+                        string[] roleNames = commands[3].Split(",");
+                        foreach (string roleName in roleNames)
+                        {
+                            IdentityRole role = this.CovenantClient.ApiRolesGet().FirstOrDefault(R => R.Name == roleName);
+                            this.CovenantClient.ApiUsersByIdRolesByRidPost(user.Id, role.Id);
+                        }
+                    }
+                }
+                else
+                {
+                    EliteConsole.PrintFormattedErrorLine("Failed to create user: \"" + commands[1] + "\"");
+                }
             }
-			CovenantUser user = this.CovenantClient.ApiUsersPost(new CovenantUserLogin(commands[1], commands[2]));
-			if (user != null)
-			{
-				EliteConsole.PrintFormattedHighlightLine("Created user: \"" + commands[1] + "\"");
-				if (commands.Length == 4)
-				{
-					string[] roleNames = commands[3].Split(",");
-					foreach (string roleName in roleNames)
-					{
-						IdentityRole role = this.CovenantClient.ApiRolesGet().FirstOrDefault(R => R.Name == roleName);
-						if (role != null)
-						{
-							IdentityUserRoleString roleResult = this.CovenantClient.ApiUsersByUidRolesByRidPost(user.Id, role.Id);
-							if (roleResult.UserId == user.Id && roleResult.RoleId == role.Id)
-							{
-								EliteConsole.PrintFormattedHighlightLine("Added user: \"" + commands[1] + "\"" + " to role: \"" + roleName + "\"");
-							}
-							else
-							{
-								EliteConsole.PrintFormattedErrorLine("Failed to add user: \"" + commands[1] + "\" to role: \"" + roleName + "\"");
-							}
-						}
-					}
-				}
-			}
-			else
-			{
-				EliteConsole.PrintFormattedErrorLine("Failed to create user: \"" + commands[1] + "\"");
-			}
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
     }
 
@@ -122,54 +124,105 @@ namespace Elite.Menu.Users
 
         public override void Command(MenuItem menuItem, string UserInput)
         {
-            UsersMenuItem usersMenuItem = (UsersMenuItem)menuItem;
-            usersMenuItem.Refresh();
-            string[] commands = UserInput.Split(" ");
-            if (commands.Length != 2 || commands[0].ToLower() != "delete")
+            try
             {
-                menuItem.PrintInvalidOptionError(UserInput);
-                EliteConsole.PrintFormattedErrorLine("Usage: Delete <username>");
-                return;
-            }
-
-			CovenantUser user = usersMenuItem.Users.FirstOrDefault(U => U.UserName == commands[1]);
-            if (user != null)
-			{
-				EliteConsole.PrintFormattedWarning("Delete user: \"" + commands[1] + "\"? [y/N] ");
-                string input = EliteConsole.Read();
-                if (input.ToLower().StartsWith("y"))
+                string[] commands = UserInput.Split(" ");
+                if (commands.Length != 2 || !commands[0].Equals(this.Name, StringComparison.OrdinalIgnoreCase))
                 {
-					this.CovenantClient.ApiUsersByUidDelete(user.Id);
+                    menuItem.PrintInvalidOptionError(UserInput);
+                    EliteConsole.PrintFormattedErrorLine("Usage: Delete <username>");
+                    return;
                 }
-			}
-            else
+                List<CovenantUser> Users = ((UsersMenuItem)menuItem).Users;
+                CovenantUser user = Users.FirstOrDefault(U => U.UserName == commands[1]);
+                if (user != null)
+                {
+                    EliteConsole.PrintFormattedWarning("Delete user: \"" + commands[1] + "\"? [y/N] ");
+                    string input = EliteConsole.Read();
+                    if (input.StartsWith("y", StringComparison.OrdinalIgnoreCase))
+                    {
+                        this.CovenantClient.ApiUsersByIdDelete(user.Id);
+                    }
+                }
+                else
+                {
+                    EliteConsole.PrintFormattedErrorLine("User: \"" + commands[1] + "\" does not exist.");
+                }
+            }
+            catch (HttpOperationException e)
             {
-                EliteConsole.PrintFormattedErrorLine("User: \"" + commands[1] + "\" does not exist.");
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
             }
         }
     }
-    
+
+    public class MenuCommandUsersPassword : MenuCommand
+    {
+        public MenuCommandUsersPassword(CovenantAPI CovenantClient) : base(CovenantClient)
+        {
+            this.Name = "Password";
+            this.Description = "Set new password.";
+            this.Parameters = new List<MenuCommandParameter>();
+        }
+
+        public override void Command(MenuItem menuItem, string UserInput)
+        {
+            try
+            {
+                string[] commands = UserInput.Split(" ");
+                if (commands.Length != 1 || !commands[0].Equals(this.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    menuItem.PrintInvalidOptionError(UserInput);
+                    EliteConsole.PrintFormattedErrorLine("Usage: Create <username> <password> [<roles>]");
+                    return;
+                }
+
+                EliteConsole.PrintHighlight("Password: ");
+                string password = Utilities.GetPassword();
+                EliteConsole.PrintInfoLine();
+                string username = this.CovenantClient.ApiUsersCurrentGet().UserName;
+
+                this.CovenantClient.ApiUsersPut(new CovenantUserLogin
+                {
+                    UserName = username,
+                    Password = password
+                });
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
+        }
+    }
+
     public class UsersMenuItem : MenuItem
     {
         public List<CovenantUser> Users { get; set; }
-		public UsersMenuItem(CovenantAPI CovenantClient, EventPrinter EventPrinter) : base(CovenantClient, EventPrinter)
+		public UsersMenuItem(CovenantAPI CovenantClient) : base(CovenantClient)
         {
             this.MenuTitle = "Users";
             this.MenuDescription = "Displays list of Covenant users.";
 			this.AdditionalOptions.Add(new MenuCommandUsersShow(CovenantClient));
 			this.AdditionalOptions.Add(new MenuCommandUsersCreate(CovenantClient));
             this.AdditionalOptions.Add(new MenuCommandUsersDelete(CovenantClient));
-			this.Refresh();
+            this.AdditionalOptions.Add(new MenuCommandUsersPassword(CovenantClient));
         }
 
         public override void Refresh()
         {
-            this.Users = this.CovenantClient.ApiUsersGet()
-                             .Where(U => this.CovenantClient.ApiUsersByUidRolesGet(U.Id)
-                             .Where(R => this.CovenantClient.ApiRolesByRidGet(R.RoleId).Name.ToLower() == "listener")
-                             .Count() == 0)
-                             .ToList();
-            this.SetupMenuAutoComplete();
+            try
+            {
+                this.Users = this.CovenantClient.ApiUsersGet()
+                             .Where(U => !this.CovenantClient.ApiUsersByIdRolesGet(U.Id)
+                                            .Where(R => this.CovenantClient.ApiRolesByRidGet(R.RoleId).Name.ToLower() == "listener")
+                                            .Any()
+                             ).ToList();
+                this.SetupMenuAutoComplete();
+            }
+            catch (HttpOperationException e)
+            {
+                EliteConsole.PrintFormattedWarningLine("CovenantException: " + e.Response.Content);
+            }
         }
 
         public override bool ValidateMenuParameters(string[] parameters = null, bool forwardEntrance = true)

@@ -3,8 +3,11 @@
 // License: GNU GPLv3
 
 using System;
+using System.IO;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 using Microsoft.Rest;
 using McMaster.Extensions.CommandLineUtils;
@@ -44,93 +47,194 @@ namespace Elite
 
             app.OnExecute(() =>
             {
-				string username = UserNameOption.Value();
-				string password = PasswordOption.Value();
+                string username = UserNameOption.Value();
+                string password = PasswordOption.Value();
+                string computername = ComputerNameOption.Value();
                 string hash = HashOption.Value();
-				if (!UserNameOption.HasValue())
-				{
-                    EliteConsole.PrintHighlight("Username: ");
-					username = EliteConsole.Read();
-				}
-                if (!PasswordOption.HasValue())
-                {
-                    EliteConsole.PrintHighlight("Password: ");
-					password = GetPassword();
-                    Console.WriteLine();
-                }
-                if (!HashOption.HasValue())
-                {
-                    EliteConsole.PrintHighlight("Covenant CertHash (Empty to trust all): ");
-                    hash = EliteConsole.Read();
-                }
-                var CovenantComputerName = ComputerNameOption.HasValue() ? ComputerNameOption.Value() : "localhost";
-                Elite elite = null;
                 try
                 {
-                    elite = new Elite(new Uri("https://" + CovenantComputerName + ":7443"), username, password, hash);
-                }
-                catch (HttpRequestException e)
-                {
-                    if (e.InnerException.GetType().Name == "SocketException")
+                    if (!ComputerNameOption.HasValue())
                     {
-                        EliteConsole.PrintFormattedErrorLine("Could not connect to Covenant at: " + CovenantComputerName);
-                        if (CovenantComputerName.ToLower() == "localhost" || CovenantComputerName == "127.0.0.1")
+                        EliteConsole.PrintHighlight("Covenant ComputerName: ");
+                        computername = EliteConsole.Read();
+                    }
+
+                    EliteConsole.PrintFormattedHighlightLine("Connecting to Covenant...");
+                    Elite elite = new Elite(new Uri("https://" + computername + ":7443"));
+                    bool connected = elite.Connect();
+                    if (!connected)
+                    {
+                        EliteConsole.PrintFormattedErrorLine("Could not connect to Covenant at: " + computername);
+                        if (computername.ToLower() == "localhost" || computername == "127.0.0.1")
                         {
                             EliteConsole.PrintFormattedErrorLine("Are you using Docker? Elite cannot connect over the loopback address while using Docker, because Covenant is not running within the Elite docker container.");
                         }
                         return -1;
                     }
-                    else if (e.InnerException.GetType().Name == "AuthenticationException")
+                    if (!UserNameOption.HasValue())
                     {
-                        EliteConsole.PrintFormattedErrorLine("Covenant certificate does not match: " + hash);
+                        EliteConsole.PrintHighlight("Username: ");
+                        username = EliteConsole.Read();
                     }
+                    if (!PasswordOption.HasValue())
+                    {
+                        EliteConsole.PrintHighlight("Password: ");
+                        password = Utilities.GetPassword();
+                        EliteConsole.PrintInfoLine();
+                    }
+                    if (!HashOption.HasValue())
+                    {
+                        EliteConsole.PrintHighlight("Covenant CertHash (Empty to trust all): ");
+                        hash = EliteConsole.Read();
+                    }
+                    EliteConsole.PrintFormattedHighlightLine("Logging in to Covenant...");
+                    bool login = elite.Login(username, password, hash);
+                    if (login)
+                    {
+                        elite.Launch();
+                        elite.CancelEventPoller.Cancel();
+                    }
+                    else
+                    {
+                        EliteConsole.PrintFormattedErrorLine("Covenant login failed. Check your username and password again.");
+                        EliteConsole.PrintFormattedErrorLine("Incorrect password for user: " + username);
+                        return -3;
+                    }
+                }
+                catch (HttpRequestException e) when (e.InnerException.GetType().Name == "SocketException")
+                {
+                    EliteConsole.PrintFormattedErrorLine("Could not connect to Covenant at: " + computername);
+                    if (computername.ToLower() == "localhost" || computername == "127.0.0.1")
+                    {
+                        EliteConsole.PrintFormattedErrorLine("Are you using Docker? Elite cannot connect over the loopback address while using Docker, because Covenant is not running within the Elite docker container.");
+                    }
+                    return -1;
+                }
+                catch (HttpRequestException e) when (e.InnerException.GetType().Name == "AuthenticationException")
+                {
+                    EliteConsole.PrintFormattedErrorLine("Covenant certificate does not match: " + hash);
                     return -2;
                 }
-                catch (HttpOperationException)
+                catch (HttpRequestException)
                 {
+                    EliteConsole.PrintFormattedErrorLine("Covenant login failed. Check your username and password again.");
                     EliteConsole.PrintFormattedErrorLine("Incorrect password for user: " + username);
                     return -3;
                 }
-                elite.Launch();
+                catch (Exception e)
+                {
+                    EliteConsole.PrintFormattedErrorLine("Unknown Exception Occured: " + e.Message + Environment.NewLine + e.StackTrace);
+                    return -4;
+                }
                 return 0;
             });
             app.Execute(args);
         }
 
+        public CancellationTokenSource CancelEventPoller { get; } = new CancellationTokenSource();
         private EliteMenu EliteMenu { get; set; }
+        private EventPrinter EventPrinter { get; set; }
+        private Uri CovenantURI { get; }
+        private Task EventPoller { get; set; }
 
-        private Elite(Uri CovenantURI, string CovenantUsername, string CovenantPassword, string CovenantHash)
+        private Elite(Uri CovenantURI)
+        {
+            this.CovenantURI = CovenantURI;
+            this.EventPrinter = new EventPrinter();
+        }
+
+        private bool Connect()
         {
             HttpClientHandler clientHandler = new HttpClientHandler();
-            clientHandler.ServerCertificateCustomValidationCallback = (sender, cert, chain, errors) =>
+            CovenantAPI LoginCovenantClient = new CovenantAPI(CovenantURI, new BasicAuthenticationCredentials { UserName = "", Password = "" }, clientHandler);
+            LoginCovenantClient.HttpClient.Timeout = new TimeSpan(0, 0, 3);
+            try
             {
-                // Cert Pinning - Trusts only the Covenant API certificate
-                if (CovenantHash == "" || cert.GetCertHashString() == CovenantHash) { return true; }
-                else { return false; }
+                // Test connection with a blank login request
+                CovenantUserLoginResult result = LoginCovenantClient.ApiUsersLoginPost(new CovenantUserLogin { UserName = "", Password = "" });
+            }
+            catch (HttpRequestException e) when (e.InnerException.GetType().Name == "AuthenticationException")
+            {
+                // Invalid login is ok, just verifying that we can reach Covenant
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+            return true;
+        }
+
+        private bool Login(string CovenantUsername, string CovenantPassword, string CovenantHash)
+        {
+            HttpClientHandler clientHandler = new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = (sender, cert, chain, errors) =>
+                {
+                    // Cert Pinning - Trusts only the Covenant API certificate
+                    return CovenantHash == "" || cert.GetCertHashString() == CovenantHash;
+                }
             };
 
-            CovenantAPI LoginCovenantClient = new CovenantAPI(CovenantURI, new BasicAuthenticationCredentials { UserName = "", Password = "" }, clientHandler);
-			CovenantUserLoginResult result = LoginCovenantClient.ApiUsersLoginPost(new CovenantUserLogin { UserName = CovenantUsername, Password = CovenantPassword });
-
-            if (result.Success ?? default)
+            CovenantAPI LoginCovenantClient = new CovenantAPI(this.CovenantURI, new BasicAuthenticationCredentials { UserName = "", Password = "" }, clientHandler);
+            try
             {
-                TokenCredentials creds = new TokenCredentials(result.Token);
-                CovenantAPI CovenantClient = new CovenantAPI(CovenantURI, creds, clientHandler);
-                this.EliteMenu = new EliteMenu(CovenantClient);
-                EventPoller poller = new EventPoller();
-                poller.EventOccurred += this.EliteMenu.onEventOccured;
-                Task.Run(() => poller.Poll(CovenantClient));
-
-                ReadLine.AutoCompletionHandler = this.EliteMenu.GetCurrentMenuItem().TabCompletionHandler;
+                CovenantUserLoginResult result = LoginCovenantClient.ApiUsersLoginPost(new CovenantUserLogin { UserName = CovenantUsername, Password = CovenantPassword });
+                if (result.Success ?? default)
+                {
+                    TokenCredentials creds = new TokenCredentials(result.Token);
+                    CovenantAPI CovenantClient = new CovenantAPI(CovenantURI, creds, clientHandler);
+                    this.EliteMenu = new EliteMenu(CovenantClient);
+                    ReadLine.AutoCompletionHandler = this.EliteMenu.GetCurrentMenuItem().TabCompletionHandler;
+                    this.EventPoller = new Task(() =>
+                    {
+                        int DelayMilliSeconds = 2000;
+                        DateTime toDate = DateTime.FromBinary(CovenantClient.ApiEventsTimeGet().Value);
+                        DateTime fromDate;
+                        while (true)
+                        {
+                            try
+                            {
+                                fromDate = toDate;
+                                toDate = DateTime.FromBinary(CovenantClient.ApiEventsTimeGet().Value);
+                                IList<EventModel> events = CovenantClient.ApiEventsRangeByFromdateByTodateGet(fromDate.ToBinary(), toDate.ToBinary());
+                                foreach (var anEvent in events)
+                                {
+                                    string context = this.EliteMenu.GetMenuLevelTitleStack();
+                                    if (anEvent.Type == EventType.Normal)
+                                    {
+                                        if (this.EventPrinter.PrintEvent(anEvent, context))
+                                        {
+                                            this.EliteMenu.PrintMenuLevel();
+                                        }
+                                    }
+                                    else if (anEvent.Type == EventType.Download)
+                                    {
+                                        DownloadEvent downloadEvent = CovenantClient.ApiEventsDownloadByIdGet(anEvent.Id ?? default);
+                                        File.WriteAllBytes(Path.Combine(Common.EliteDownloadsFolder, downloadEvent.FileName), Convert.FromBase64String(downloadEvent.FileContents));
+                                    }
+                                }
+                                Thread.Sleep(DelayMilliSeconds);
+                            }
+                            catch (Exception) { }
+                        }
+                    }, this.CancelEventPoller.Token);
+                }
+                else
+                {
+                    return false;
+                }
             }
-            else
+            catch (HttpOperationException)
             {
-                EliteConsole.PrintFormattedErrorLine("Covenant login failed. Check your username and password again.");
+                return false;
             }
+            return true;
         }
 
         private void Launch()
         {
+            this.EventPoller.Start();
             this.EliteMenu.PrintMenu("");
             bool EliteStatus = true;
             while (EliteStatus)
@@ -139,29 +243,5 @@ namespace Elite
                 EliteStatus = this.EliteMenu.PrintMenu(input);
             }
         }
-
-        private static string GetPassword()
-		{
-			string password = "";
-			ConsoleKeyInfo nextKey = Console.ReadKey(true);
-            while (nextKey.Key != ConsoleKey.Enter)
-            {
-                if (nextKey.Key == ConsoleKey.Backspace)
-                {
-                    if (password.Length > 0)
-                    {
-						password = password.Substring(0, password.Length - 1);
-                        Console.Write("\b \b");
-                    }
-                }
-                else
-                {
-					password += nextKey.KeyChar;
-                    Console.Write("*");
-                }
-                nextKey = Console.ReadKey(true);
-            }
-			return password;
-		}
     }
 }
