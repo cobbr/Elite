@@ -121,12 +121,10 @@ namespace Elite.Menu.Listeners
                             NextValueSuggestions = new List<string> { "http://", "https://" }
                         },
                         new MenuCommandParameterValue {
-                            Value = "ConnectAddress",
-                            NextValueSuggestions = Net.Dns.GetHostAddresses(Net.Dns.GetHostName()).Select(IP => IP.ToString()).ToList()
+                            Value = "ConnectAddress"
                         },
                         new MenuCommandParameterValue {
-                            Value = "BindAddress",
-                            NextValueSuggestions = Net.Dns.GetHostAddresses(Net.Dns.GetHostName()).Select(IP => IP.ToString()).ToList()
+                            Value = "BindAddress"
                         },
                         new MenuCommandParameterValue {
                             Value = "BindPort",
