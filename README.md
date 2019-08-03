@@ -1,3 +1,9 @@
+# Deprecated (Temporarily)
+
+The parent [Covenant](https://github.com/cobbr/Covenant) project no longer requires a client-side application. Elite has temporarily been deprecated. Please instead use the web interface included with the Covenant project.
+
+Elite may eventually be brought up-to-date with the Covenant project as an alternative interface, but for now this project is not updated and will not work with Covenant v0.3 or higher.
+
 # Elite
 
 Elite is a .NET core, client application built for interacting with [Covenant](https://github.com/cobbr/Covenant).
